@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ───────────────────────────────────────────────
+enum Role {
+  ADMIN
+  BTC
+  PLAYER
+  REFEREE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum RevokedReason {
+  LOGOUT
+  REUSE_DETECTED
+  EXPIRED
+  ADMIN_REVOKED
+}
+
+// ─── MODELS ──────────────────────────────────────────────
+
+model User {
+  id       Int        @id @default(autoincrement())
+  name     String     @db.VarChar(100)
+  email    String     @unique @db.VarChar(100)
+  phone    String     @unique @db.VarChar(20)
+  password String     @db.VarChar(255)
+  role     Role       @default(PLAYER)
+  status   UserStatus @default(INACTIVE)
+
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id       Int    @id @default(autoincrement())
+  userId   Int
+  deviceId String @db.VarChar(255)
+  tokenHash String @db.VarChar(255)
+
+  isCurrent Boolean @default(true)
+  revoked   Boolean @default(false)
+
+  revokedAt     DateTime?
+  revokedReason RevokedReason?
+
+  lastUsedAt       DateTime  @default(now())
+  absoluteExpiredAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@map("refresh_tokens")
+}
