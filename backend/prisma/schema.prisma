@@ -7,7 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─── ENUMS ───────────────────────────────────────────────
 enum Role {
   ADMIN
   BTC
@@ -28,45 +27,962 @@ enum RevokedReason {
   ADMIN_REVOKED
 }
 
-// ─── MODELS ──────────────────────────────────────────────
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ParticipationType {
+  TEAM
+  SOLO
+}
+
+enum TournamentRefereeStatus {
+  INVITED
+  ACTIVE
+  INACTIVE
+}
+
+enum TeamStatus {
+  ACTIVE
+  DISBANDED
+}
+
+enum TeamMemberRole {
+  CAPTAIN
+  MEMBER
+}
+
+enum TeamJoinRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum AIReviewRecommendation {
+  APPROVE
+  REVIEW
+  REJECT
+}
+
+enum StageFormat {
+  GROUP
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+  SWISS
+}
+
+enum StageStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  POSTPONED
+}
+
+enum MatchSlot {
+  TEAM_ONE
+  TEAM_TWO
+}
+
+enum AdvancementOutcome {
+  WINNER
+  LOSER
+}
+
+enum MatchRefereeStatus {
+  ASSIGNED
+  CONFIRMED
+  DECLINED
+  COMPLETED
+  REMOVED
+}
+
+enum ResultSubmissionStatus {
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+}
+
+enum ResultConfirmationStatus {
+  CONFIRMED
+  DISPUTED
+  TIMED_OUT
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum DisputeEventType {
+  CREATED
+  EVIDENCE_ADDED
+  STATUS_CHANGED
+  COMMENT_ADDED
+  RESOLVED
+}
+
+enum RatingSource {
+  USER_PROVIDED
+  MATCH_RESULT
+  ADMIN_ADJUSTMENT
+}
+
+enum SeedingRunStatus {
+  DRAFT
+  FINALIZED
+  FAILED
+}
+
+enum NotificationType {
+  TOURNAMENT
+  REGISTRATION
+  TEAM
+  MATCH
+  RESULT
+  DISPUTE
+  SYSTEM
+}
 
 model User {
-  id       Int        @id @default(autoincrement())
-  name     String     @db.VarChar(100)
-  email    String     @unique @db.VarChar(100)
-  phone    String     @unique @db.VarChar(20)
-  password String     @db.VarChar(255)
-  role     Role       @default(PLAYER)
-  status   UserStatus @default(INACTIVE)
+  id        Int        @id @default(autoincrement())
+  name      String     @db.VarChar(100)
+  email     String     @unique @db.VarChar(100)
+  phone     String     @unique @db.VarChar(20)
+  password  String     @db.VarChar(255)
+  role      Role       @default(PLAYER)
+  status    UserStatus @default(INACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  refreshTokens RefreshToken[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  refreshTokens             RefreshToken[]
+  organizedTournaments      Tournament[]               @relation("TournamentOrganizer")
+  tournamentReferees        TournamentReferee[]
+  captainedTeams            Team[]                     @relation("TeamCaptain")
+  teamMemberships           TeamMember[]               @relation("TeamMemberUser")
+  teamJoinRequests          TeamJoinRequest[]          @relation("JoinRequestUser")
+  decidedTeamJoinRequests   TeamJoinRequest[]          @relation("JoinRequestDecider")
+  submittedRegistrations    Registration[]             @relation("RegistrationSubmitter")
+  reviewedRegistrations     Registration[]             @relation("RegistrationReviewer")
+  requestedRosterChanges    RegistrationRosterChange[] @relation("RosterChangeRequester")
+  approvedRosterChanges     RegistrationRosterChange[] @relation("RosterChangeApprover")
+  registrationAIReviews     RegistrationAIReview[]     @relation("RegistrationAIRequester")
+  candidateRankingRuns      AICandidateRankingRun[]
+  candidateRankingItems     AICandidateRankingItem[]   @relation("CandidateUser")
+  matchRefereeAssignments   MatchReferee[]
+  createdRefereeAssignments MatchReferee[]             @relation("RefereeAssignmentCreator")
+  matchReschedules          MatchReschedule[]
+  resultSubmissions         MatchResultSubmission[]
+  resultConfirmations       MatchResultConfirmation[]
+  openedDisputes            Dispute[]                  @relation("DisputeOpener")
+  resolvedDisputes          Dispute[]                  @relation("DisputeResolver")
+  uploadedEvidence          DisputeEvidence[]
+  disputeEvents             DisputeEvent[]
+  playerRatings             PlayerRating[]
+  seedingRuns               SeedingRun[]
+  createdNotifications      Notification[]             @relation("NotificationCreator")
+  notificationRecipients    NotificationRecipient[]
+  auditLogs                 AuditLog[]
 
   @@map("users")
 }
 
 model RefreshToken {
-  id       Int    @id @default(autoincrement())
-  userId   Int
-  deviceId String @db.VarChar(255)
-  tokenHash String @db.VarChar(255)
-
-  isCurrent Boolean @default(true)
-  revoked   Boolean @default(false)
-
-  revokedAt     DateTime?
-  revokedReason RevokedReason?
-
-  lastUsedAt       DateTime  @default(now())
+  id                Int            @id @default(autoincrement())
+  userId            Int
+  deviceId          String         @db.VarChar(255)
+  tokenHash         String         @db.VarChar(255)
+  isCurrent         Boolean        @default(true)
+  revoked           Boolean        @default(false)
+  revokedAt         DateTime?
+  revokedReason     RevokedReason?
+  lastUsedAt        DateTime       @default(now())
   absoluteExpiredAt DateTime
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, deviceId])
+  @@index([userId, revoked])
   @@map("refresh_tokens")
+}
+
+model Tournament {
+  id                      Int              @id @default(autoincrement())
+  organizerId             Int
+  name                    String           @db.VarChar(200)
+  description             String?          @db.Text
+  status                  TournamentStatus @default(DRAFT)
+  startsAt                DateTime?
+  endsAt                  DateTime?
+  registrationOpensAt     DateTime?
+  registrationClosesAt    DateTime?
+  resultConfirmationHours Int              @default(4)
+  generalRules            String?          @db.Text
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  organizer     User                @relation("TournamentOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
+  categories    Category[]
+  referees      TournamentReferee[]
+  ruleDocuments RuleDocument[]
+
+  @@index([organizerId, status])
+  @@index([startsAt, endsAt])
+  @@map("tournaments")
+}
+
+model Game {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(100)
+  slug        String   @unique @db.VarChar(120)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  categories    Category[]
+  playerRatings PlayerRating[]
+
+  @@map("games")
+}
+
+model Category {
+  id                Int               @id @default(autoincrement())
+  tournamentId      Int
+  gameId            Int
+  name              String            @db.VarChar(150)
+  description       String?           @db.Text
+  participationType ParticipationType
+  minPlayers        Int               @default(1)
+  maxPlayers        Int               @default(1)
+  maxTeams          Int?
+  eligibilityNotes  String?           @db.Text
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  tournament       Tournament                @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  game             Game                      @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  eligibilityRules CategoryEligibilityRule[]
+  teams            Team[]
+  ruleDocuments    RuleDocument[]
+  stages           Stage[]
+
+  @@unique([tournamentId, name])
+  @@index([gameId])
+  @@map("categories")
+}
+
+model TournamentReferee {
+  id           Int                     @id @default(autoincrement())
+  tournamentId Int
+  userId       Int
+  status       TournamentRefereeStatus @default(ACTIVE)
+  assignedAt   DateTime                @default(now())
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@index([userId, status])
+  @@map("tournament_referees")
+}
+
+model CategoryEligibilityRule {
+  id          Int      @id @default(autoincrement())
+  categoryId  Int
+  name        String   @db.VarChar(150)
+  description String   @db.Text
+  isRequired  Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, sortOrder])
+  @@map("category_eligibility_rules")
+}
+
+model RuleDocument {
+  id           Int      @id @default(autoincrement())
+  tournamentId Int
+  categoryId   Int?
+  title        String   @db.VarChar(200)
+  fileUrl      String   @db.Text
+  mimeType     String?  @db.VarChar(100)
+  checksum     String?  @db.VarChar(128)
+  isProcessed  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tournament Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  chunks     RuleChunk[]
+
+  @@index([tournamentId, categoryId])
+  @@map("rule_documents")
+}
+
+model RuleChunk {
+  id             Int      @id @default(autoincrement())
+  ruleDocumentId Int
+  chunkIndex     Int
+  content        String   @db.Text
+  pageNumber     Int?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  ruleDocument RuleDocument        @relation(fields: [ruleDocumentId], references: [id], onDelete: Cascade)
+  citations    DisputeAICitation[]
+
+  @@unique([ruleDocumentId, chunkIndex])
+  @@map("rule_chunks")
+}
+
+model Team {
+  id         Int        @id @default(autoincrement())
+  categoryId Int
+  captainId  Int
+  name       String     @db.VarChar(100)
+  tag        String?    @db.VarChar(20)
+  logoUrl    String?    @db.Text
+  status     TeamStatus @default(ACTIVE)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  category             Category                  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  captain              User                      @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: Restrict)
+  members              TeamMember[]
+  joinRequests         TeamJoinRequest[]
+  candidateRankingRuns AICandidateRankingRun[]
+  registrations        Registration[]
+  standings            StageStanding[]
+  matchesAsTeamOne     Match[]                   @relation("MatchTeamOne")
+  matchesAsTeamTwo     Match[]                   @relation("MatchTeamTwo")
+  matchesWon           Match[]                   @relation("MatchWinner")
+  matchGamesWon        MatchGame[]               @relation("MatchGameWinner")
+  resultConfirmations  MatchResultConfirmation[]
+  disputes             Dispute[]
+  seedingItems         SeedingRunItem[]
+  predictedWins        MatchPrediction[]         @relation("PredictionWinner")
+
+  @@unique([categoryId, name])
+  @@index([captainId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        Int            @id @default(autoincrement())
+  teamId    Int
+  userId    Int
+  role      TeamMemberRole @default(MEMBER)
+  joinedAt  DateTime       @default(now())
+  leftAt    DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation("TeamMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId, leftAt])
+  @@map("team_members")
+}
+
+model TeamJoinRequest {
+  id          Int                   @id @default(autoincrement())
+  teamId      Int
+  userId      Int
+  message     String?               @db.Text
+  status      TeamJoinRequestStatus @default(PENDING)
+  decidedAt   DateTime?
+  decidedById Int?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  team         Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user         User                     @relation("JoinRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  decidedBy    User?                    @relation("JoinRequestDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  rankingItems AICandidateRankingItem[]
+
+  @@index([teamId, status])
+  @@index([userId, status])
+  @@map("team_join_requests")
+}
+
+model Registration {
+  id             Int                @id @default(autoincrement())
+  teamId         Int
+  submittedById  Int
+  reviewedById   Int?
+  status         RegistrationStatus @default(PENDING)
+  application    Json?
+  submittedAt    DateTime           @default(now())
+  reviewedAt     DateTime?
+  reviewNote     String?            @db.Text
+  rosterLockedAt DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  team          Team                       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  submittedBy   User                       @relation("RegistrationSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewedBy    User?                      @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  aiReviews     RegistrationAIReview[]
+  rosterChanges RegistrationRosterChange[]
+
+  @@unique([teamId])
+  @@index([status, submittedAt])
+  @@map("registrations")
+}
+
+model RegistrationRosterChange {
+  id             Int       @id @default(autoincrement())
+  registrationId Int
+  changedById    Int
+  change         Json
+  approved       Boolean   @default(false)
+  approvedById   Int?
+  createdAt      DateTime  @default(now())
+  approvedAt     DateTime?
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  changedBy    User         @relation("RosterChangeRequester", fields: [changedById], references: [id], onDelete: Restrict)
+  approvedBy   User?        @relation("RosterChangeApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([registrationId, createdAt])
+  @@map("registration_roster_changes")
+}
+
+model RegistrationAIReview {
+  id             Int                    @id @default(autoincrement())
+  registrationId Int
+  requestedById  Int
+  recommendation AIReviewRecommendation
+  summary        String                 @db.Text
+  findings       Json?
+  modelName      String?                @db.VarChar(100)
+  createdAt      DateTime               @default(now())
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  requestedBy  User         @relation("RegistrationAIRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([registrationId, createdAt])
+  @@map("registration_ai_reviews")
+}
+
+model AICandidateRankingRun {
+  id            Int      @id @default(autoincrement())
+  teamId        Int
+  requestedById Int
+  modelName     String?  @db.VarChar(100)
+  input         Json?
+  createdAt     DateTime @default(now())
+
+  team        Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  requestedBy User                     @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  items       AICandidateRankingItem[]
+
+  @@index([teamId, createdAt])
+  @@map("ai_candidate_ranking_runs")
+}
+
+model AICandidateRankingItem {
+  id            Int      @id @default(autoincrement())
+  runId         Int
+  joinRequestId Int
+  candidateId   Int
+  rank          Int
+  score         Float?
+  reason        String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  run         AICandidateRankingRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  joinRequest TeamJoinRequest       @relation(fields: [joinRequestId], references: [id], onDelete: Cascade)
+  candidate   User                  @relation("CandidateUser", fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, joinRequestId])
+  @@unique([runId, rank])
+  @@map("ai_candidate_ranking_items")
+}
+
+model Stage {
+  id         Int         @id @default(autoincrement())
+  categoryId Int
+  name       String      @db.VarChar(120)
+  sequence   Int
+  format     StageFormat
+  status     StageStatus @default(PLANNED)
+  config     Json?
+  startsAt   DateTime?
+  endsAt     DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  category    Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  groups      StageGroup[]
+  standings   StageStanding[]
+  matches     Match[]
+  seedingRuns SeedingRun[]
+
+  @@unique([categoryId, sequence])
+  @@index([categoryId, status])
+  @@map("stages")
+}
+
+model StageGroup {
+  id        Int      @id @default(autoincrement())
+  stageId   Int
+  name      String   @db.VarChar(80)
+  createdAt DateTime @default(now())
+
+  stage     Stage           @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  standings StageStanding[]
+  matches   Match[]
+
+  @@unique([stageId, name])
+  @@map("stage_groups")
+}
+
+model StageStanding {
+  id           Int      @id @default(autoincrement())
+  stageId      Int
+  groupId      Int?
+  teamId       Int
+  rank         Int?
+  played       Int      @default(0)
+  wins         Int      @default(0)
+  losses       Int      @default(0)
+  draws        Int      @default(0)
+  points       Float    @default(0)
+  scoreFor     Int      @default(0)
+  scoreAgainst Int      @default(0)
+  qualified    Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+
+  stage Stage       @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group StageGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  team  Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, teamId])
+  @@index([stageId, groupId, rank])
+  @@map("stage_standings")
+}
+
+model Match {
+  id                         Int         @id @default(autoincrement())
+  stageId                    Int
+  groupId                    Int?
+  round                      Int?
+  matchNumber                Int?
+  teamOneId                  Int?
+  teamTwoId                  Int?
+  winnerTeamId               Int?
+  status                     MatchStatus @default(SCHEDULED)
+  scheduledDate              DateTime?   @db.Date
+  scheduledStartAt           DateTime?   @db.Time(0)
+  scheduledEndAt             DateTime?   @db.Time(0)
+  startedAt                  DateTime?
+  completedAt                DateTime?
+  teamOneScore               Int?
+  teamTwoScore               Int?
+  bestOf                     Int?
+  resultConfirmationDeadline DateTime?
+  notes                      String?     @db.Text
+  createdAt                  DateTime    @default(now())
+  updatedAt                  DateTime    @updatedAt
+
+  stage             Stage                   @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group             StageGroup?             @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  teamOne           Team?                   @relation("MatchTeamOne", fields: [teamOneId], references: [id], onDelete: SetNull)
+  teamTwo           Team?                   @relation("MatchTeamTwo", fields: [teamTwoId], references: [id], onDelete: SetNull)
+  winner            Team?                   @relation("MatchWinner", fields: [winnerTeamId], references: [id], onDelete: SetNull)
+  referees          MatchReferee[]
+  advancementsFrom  MatchAdvancement[]      @relation("AdvancementSource")
+  advancementsTo    MatchAdvancement[]      @relation("AdvancementDestination")
+  games             MatchGame[]
+  reschedules       MatchReschedule[]
+  resultSubmissions MatchResultSubmission[]
+  disputes          Dispute[]
+  predictions       MatchPrediction[]
+  ratingHistory     RatingHistory[]
+
+  @@unique([stageId, matchNumber])
+  @@index([stageId, status])
+  @@index([scheduledDate])
+  @@index([teamOneId, scheduledDate])
+  @@index([teamTwoId, scheduledDate])
+  @@map("matches")
+}
+
+model MatchReferee {
+  id           Int                @id @default(autoincrement())
+  matchId      Int
+  refereeId    Int
+  status       MatchRefereeStatus @default(ASSIGNED)
+  assignedById Int?
+  assignedAt   DateTime           @default(now())
+  respondedAt  DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  match      Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  referee    User  @relation(fields: [refereeId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("RefereeAssignmentCreator", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, refereeId])
+  @@index([refereeId, status])
+  @@map("match_referees")
+}
+
+model MatchAdvancement {
+  id                 Int                @id @default(autoincrement())
+  sourceMatchId      Int
+  destinationMatchId Int
+  outcome            AdvancementOutcome
+  destinationSlot    MatchSlot
+  createdAt          DateTime           @default(now())
+
+  sourceMatch      Match @relation("AdvancementSource", fields: [sourceMatchId], references: [id], onDelete: Cascade)
+  destinationMatch Match @relation("AdvancementDestination", fields: [destinationMatchId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceMatchId, outcome])
+  @@unique([destinationMatchId, destinationSlot])
+  @@map("match_advancements")
+}
+
+model MatchGame {
+  id           Int       @id @default(autoincrement())
+  matchId      Int
+  gameNumber   Int
+  teamOneScore Int?
+  teamTwoScore Int?
+  winnerTeamId Int?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  winner Team? @relation("MatchGameWinner", fields: [winnerTeamId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, gameNumber])
+  @@map("match_games")
+}
+
+model MatchReschedule {
+  id              Int       @id @default(autoincrement())
+  matchId         Int
+  changedById     Int
+  previousDate    DateTime? @db.Date
+  previousStartAt DateTime? @db.Time(0)
+  previousEndAt   DateTime? @db.Time(0)
+  newDate         DateTime? @db.Date
+  newStartAt      DateTime? @db.Time(0)
+  newEndAt        DateTime? @db.Time(0)
+  reason          String?   @db.Text
+  createdAt       DateTime  @default(now())
+
+  match     Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  changedBy User  @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([matchId, createdAt])
+  @@map("match_reschedules")
+}
+
+model MatchResultSubmission {
+  id            Int                    @id @default(autoincrement())
+  matchId       Int
+  submittedById Int
+  teamOneScore  Int
+  teamTwoScore  Int
+  status        ResultSubmissionStatus @default(SUBMITTED)
+  note          String?                @db.Text
+  submittedAt   DateTime               @default(now())
+  processedAt   DateTime?
+
+  match         Match                     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  submittedBy   User                      @relation(fields: [submittedById], references: [id], onDelete: Restrict)
+  confirmations MatchResultConfirmation[]
+
+  @@index([matchId, submittedAt])
+  @@map("match_result_submissions")
+}
+
+model MatchResultConfirmation {
+  id            Int                      @id @default(autoincrement())
+  submissionId  Int
+  teamId        Int
+  confirmedById Int
+  status        ResultConfirmationStatus
+  note          String?                  @db.Text
+  respondedAt   DateTime?
+  createdAt     DateTime                 @default(now())
+
+  submission  MatchResultSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  confirmedBy User                  @relation(fields: [confirmedById], references: [id], onDelete: Restrict)
+
+  @@unique([submissionId, teamId])
+  @@map("match_result_confirmations")
+}
+
+model Dispute {
+  id           Int           @id @default(autoincrement())
+  matchId      Int
+  teamId       Int
+  openedById   Int
+  resolvedById Int?
+  title        String        @db.VarChar(200)
+  description  String        @db.Text
+  status       DisputeStatus @default(OPEN)
+  decision     String?       @db.Text
+  openedAt     DateTime      @default(now())
+  resolvedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  match       Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  openedBy    User                  @relation("DisputeOpener", fields: [openedById], references: [id], onDelete: Restrict)
+  resolvedBy  User?                 @relation("DisputeResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  evidence    DisputeEvidence[]
+  events      DisputeEvent[]
+  suggestions DisputeAISuggestion[]
+
+  @@index([matchId, status])
+  @@map("disputes")
+}
+
+model DisputeEvidence {
+  id           Int      @id @default(autoincrement())
+  disputeId    Int
+  uploadedById Int
+  fileUrl      String   @db.Text
+  fileName     String?  @db.VarChar(255)
+  mimeType     String?  @db.VarChar(100)
+  description  String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  dispute    Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([disputeId, createdAt])
+  @@map("dispute_evidence")
+}
+
+model DisputeEvent {
+  id        Int              @id @default(autoincrement())
+  disputeId Int
+  actorId   Int?
+  type      DisputeEventType
+  message   String?          @db.Text
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([disputeId, createdAt])
+  @@map("dispute_events")
+}
+
+model DisputeAISuggestion {
+  id         Int      @id @default(autoincrement())
+  disputeId  Int
+  modelName  String?  @db.VarChar(100)
+  summary    String   @db.Text
+  reasoning  String?  @db.Text
+  confidence Float?
+  createdAt  DateTime @default(now())
+
+  dispute   Dispute             @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  citations DisputeAICitation[]
+
+  @@index([disputeId, createdAt])
+  @@map("dispute_ai_suggestions")
+}
+
+model DisputeAICitation {
+  id           Int      @id @default(autoincrement())
+  suggestionId Int
+  ruleChunkId  Int
+  quote        String?  @db.Text
+  relevance    Float?
+  createdAt    DateTime @default(now())
+
+  suggestion DisputeAISuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  ruleChunk  RuleChunk           @relation(fields: [ruleChunkId], references: [id], onDelete: Restrict)
+
+  @@unique([suggestionId, ruleChunkId])
+  @@map("dispute_ai_citations")
+}
+
+model PlayerRating {
+  id               Int       @id @default(autoincrement())
+  userId           Int
+  gameId           Int
+  rating           Float     @default(0)
+  initialRank      String?   @db.VarChar(100)
+  yearsPlaying     Float?
+  matchesPlayed    Int?
+  lastCalculatedAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game    Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  history RatingHistory[]
+
+  @@unique([userId, gameId])
+  @@index([gameId, rating])
+  @@map("player_ratings")
+}
+
+model RatingHistory {
+  id             Int          @id @default(autoincrement())
+  playerRatingId Int
+  matchId        Int?
+  previousRating Float?
+  newRating      Float
+  source         RatingSource
+  reason         String?      @db.Text
+  createdAt      DateTime     @default(now())
+
+  playerRating PlayerRating @relation(fields: [playerRatingId], references: [id], onDelete: Cascade)
+  match        Match?       @relation(fields: [matchId], references: [id], onDelete: SetNull)
+
+  @@index([playerRatingId, createdAt])
+  @@map("rating_history")
+}
+
+model SeedingRun {
+  id          Int              @id @default(autoincrement())
+  stageId     Int
+  createdById Int
+  status      SeedingRunStatus @default(DRAFT)
+  modelName   String?          @db.VarChar(100)
+  input       Json?
+  createdAt   DateTime         @default(now())
+  finalizedAt DateTime?
+
+  stage     Stage            @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  createdBy User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  items     SeedingRunItem[]
+
+  @@index([stageId, createdAt])
+  @@map("seeding_runs")
+}
+
+model SeedingRunItem {
+  id            Int      @id @default(autoincrement())
+  runId         Int
+  teamId        Int
+  suggestedSeed Int?
+  finalSeed     Int?
+  score         Float?
+  reason        String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  run  SeedingRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  team Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, teamId])
+  @@unique([runId, finalSeed])
+  @@map("seeding_run_items")
+}
+
+model MatchPrediction {
+  id                    Int      @id @default(autoincrement())
+  matchId               Int
+  predictedWinnerTeamId Int?
+  teamOneWinProbability Float?
+  confidence            Float?
+  modelName             String?  @db.VarChar(100)
+  explanation           String?  @db.Text
+  createdAt             DateTime @default(now())
+
+  match           Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  predictedWinner Team? @relation("PredictionWinner", fields: [predictedWinnerTeamId], references: [id], onDelete: SetNull)
+
+  @@index([matchId, createdAt])
+  @@map("match_predictions")
+}
+
+model Notification {
+  id          Int              @id @default(autoincrement())
+  createdById Int?
+  type        NotificationType
+  title       String           @db.VarChar(200)
+  body        String           @db.Text
+  data        Json?
+  createdAt   DateTime         @default(now())
+
+  createdBy  User?                   @relation("NotificationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  recipients NotificationRecipient[]
+
+  @@index([type, createdAt])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  id             Int       @id @default(autoincrement())
+  notificationId Int
+  userId         Int
+  readAt         DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+  @@map("notification_recipients")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int?
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(100)
+  entityId   String   @db.VarChar(100)
+  changes    Json?
+  ipAddress  String?  @db.VarChar(45)
+  userAgent  String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
 }
