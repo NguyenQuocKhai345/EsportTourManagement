@@ -8,6 +8,9 @@ import { UserModule } from './modules/user/user.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtGuard } from './auth/jwt/jwt.guard';
 import { RolesGuard } from './auth/jwt/roles.guard';
+import { TournamentsModule } from './modules/tournaments/tournaments.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { GamesModule } from './modules/games/games.module';
 
 @Module({
   imports: [
@@ -15,6 +18,9 @@ import { RolesGuard } from './auth/jwt/roles.guard';
     PrismaModule,
     AuthModule,
     UserModule,
+    TournamentsModule,
+    CategoriesModule,
+    GamesModule,
   ],
   controllers: [AppController],
   providers: [
