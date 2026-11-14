@@ -4,7 +4,7 @@
 
 <h1 align="center">Auth NestJS</h1>
 
-<p align="center">Backend API xác thực & phân quyền (Authentication &amp; Authorization) xây dựng bằng <a href="http://nestjs.com/" target="_blank">NestJS</a> + <a href="https://www.prisma.io/" target="_blank">Prisma</a>.</p>
+<p align="center">Backend API xác thực & phân quyền (Authentication & Authorization) xây dựng bằng <a href="http://nestjs.com/" target="_blank">NestJS</a> + <a href="https://www.prisma.io/" target="_blank">Prisma</a>.</p>
 
 ---
 
@@ -25,15 +25,15 @@
 
 ## Công nghệ chính
 
-| Thành phần | Công nghệ |
-| --- | --- |
-| Framework | NestJS 10 |
-| ORM | Prisma 7 (`prisma-client`, output `src/generated/prisma`) |
-| DB driver | PostgreSQL qua `@prisma/adapter-pg` (`pg`) |
-| Xác thực | Passport (`passport-local`, `passport-jwt`) + `@nestjs/jwt` |
-| Hash mật khẩu | argon2 |
-| Validate | class-validator / class-transformer |
-| Tài liệu API | `@nestjs/swagger` |
+| Thành phần    | Công nghệ                                                       |
+| --------------- | ----------------------------------------------------------------- |
+| Framework       | NestJS 10                                                         |
+| ORM             | Prisma 7 (`prisma-client`, output `src/generated/prisma`)     |
+| DB driver       | PostgreSQL qua `@prisma/adapter-pg` (`pg`)                    |
+| Xác thực      | Passport (`passport-local`, `passport-jwt`) + `@nestjs/jwt` |
+| Hash mật khẩu | argon2                                                            |
+| Validate        | class-validator / class-transformer                               |
+| Tài liệu API  | `@nestjs/swagger`                                               |
 
 ## Cấu trúc thư mục
 
@@ -180,10 +180,22 @@ npm run test:cov
 
 ## API chính (nhóm auth)
 
-| Method | Endpoint | Public | Mô tả |
-| --- | --- | --- | --- |
-| POST | `/api/v1/auth/register` | ✅ | Đăng ký tài khoản mới, tự động đăng nhập trả về token |
-| POST | `/api/v1/auth/login` | ✅ | Đăng nhập bằng `phone` + `password` + `deviceId` |
-| POST | `/api/v1/auth/refresh` | ✅ | Làm mới `accessToken`/`refreshToken` theo `deviceId` |
-| POST | `/api/v1/auth/logout` | ❌ | Thu hồi refresh token của một thiết bị |
-| POST | `/api/v1/auth/logout-all-devices` | ❌ | Thu hồi refresh token của tất cả thiết bị |
+| Method | Endpoint                            | Public | Mô tả                                                             |
+| ------ | ----------------------------------- | ------ | ------------------------------------------------------------------- |
+| POST   | `/api/v1/auth/register`           | ✅     | Đăng ký tài khoản mới, tự động đăng nhập trả về token |
+| POST   | `/api/v1/auth/login`              | ✅     | Đăng nhập bằng `phone` + `password` + `deviceId`          |
+| POST   | `/api/v1/auth/refresh`            | ✅     | Làm mới `accessToken`/`refreshToken` theo `deviceId`        |
+| POST   | `/api/v1/auth/logout`             | ❌     | Thu hồi refresh token của một thiết bị                         |
+| POST   | `/api/v1/auth/logout-all-devices` | ❌     | Thu hồi refresh token của tất cả thiết bị                     |
+
+## API quản lý người dùng (nhóm Admin User)
+
+> Toàn bộ API bên dưới yêu cầu xác thực Bearer Token của tài khoản có vai trò `ADMIN`.
+
+| Method | Endpoint             | Quyền | Mô tả |
+| ------ | -------------------- | ----- | ----- |
+| POST   | `/api/v1/users`      | ADMIN | Tạo tài khoản người dùng mới (chỉ định role, status) |
+| GET    | `/api/v1/users`      | ADMIN | Lấy danh sách người dùng (phân trang `page`, `limit`, tìm kiếm `search`, lọc `role`, `status`) |
+| GET    | `/api/v1/users/:id`  | ADMIN | Xem thông tin chi tiết một người dùng |
+| PATCH  | `/api/v1/users/:id`  | ADMIN | Cập nhật thông tin (đổi tên, email, phone, role, status, password). Thu hồi phiên đăng nhập khi khóa tài khoản |
+| DELETE | `/api/v1/users/:id`  | ADMIN | Xóa tài khoản người dùng (chặn Admin tự xóa chính mình) |
