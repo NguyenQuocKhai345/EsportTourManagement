@@ -14,7 +14,13 @@ import {
   TournamentStatus,
   UserStatus,
 } from '../../generated/prisma/enums';
-import { CreateTeamDto, TeamListQueryDto, UpdateTeamDto } from './dto/team.dto';
+import {
+  AddTeamMemberDto,
+  ChangeTeamCaptainDto,
+  CreateTeamDto,
+  TeamListQueryDto,
+  UpdateTeamDto,
+} from './dto/team.dto';
 
 const teamDetails = {
   category: {
@@ -243,6 +249,235 @@ export class TeamsService {
     });
   }
 
+  async addMember(
+    teamId: number,
+    actor: { id: number; role: Role; status: UserStatus },
+    input: AddTeamMemberDto,
+  ) {
+    this.assertActivePlayer(actor, 'thêm thành viên');
+
+    return this.prisma.client.$transaction(async (tx: any) => {
+      const team = await this.getDraftTeamForCaptain(tx, teamId, actor.id);
+      if (team.category.participationType === ParticipationType.SOLO) {
+        throw new BadRequestException(
+          'Không thể thêm thành viên vào đội SOLO.',
+        );
+      }
+
+      const user = await tx.user.findUnique({
+        where: { phone: input.phone },
+        select: { id: true, status: true, role: true },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng.');
+      }
+      if (user.status !== UserStatus.ACTIVE || user.role !== Role.PLAYER) {
+        throw new ConflictException(
+          'Thành viên phải là người chơi đang hoạt động.',
+        );
+      }
+
+      const existingMembership = await tx.teamMember.findFirst({
+        where: {
+          userId: user.id,
+          leftAt: null,
+          team: {
+            categoryId: team.categoryId,
+            status: {
+              in: [TeamStatus.DRAFT, TeamStatus.PENDING, TeamStatus.ACCEPTED],
+            },
+          },
+        },
+        select: { id: true },
+      });
+      if (existingMembership) {
+        throw new ConflictException(
+          'Người chơi đã thuộc một đội trong hạng mục này.',
+        );
+      }
+
+      const rosterCount = await tx.teamMember.count({
+        where: { teamId, leftAt: null },
+      });
+      if (rosterCount >= team.category.maxPlayers) {
+        throw new BadRequestException(
+          'Roster đã đạt số thành viên tối đa của hạng mục.',
+        );
+      }
+
+      const previousMembership = await tx.teamMember.findFirst({
+        where: { teamId, userId: user.id },
+        select: { id: true },
+      });
+      if (previousMembership) {
+        await tx.teamMember.update({
+          where: { id: previousMembership.id },
+          data: {
+            leftAt: null,
+            joinedAt: new Date(),
+            role: TeamMemberRole.MEMBER,
+          },
+        });
+      } else {
+        await tx.teamMember.create({
+          data: {
+            teamId,
+            userId: user.id,
+            role: TeamMemberRole.MEMBER,
+          },
+        });
+      }
+
+      return this.getTeamDetails(tx, teamId);
+    });
+  }
+
+  async removeMember(
+    teamId: number,
+    actor: { id: number; role: Role; status: UserStatus },
+    phone: string,
+  ) {
+    this.assertActivePlayer(actor, 'xóa thành viên');
+    if (!/^[0-9]{10}$/.test(phone)) {
+      throw new BadRequestException('Số điện thoại phải gồm đúng 10 chữ số.');
+    }
+
+    return this.prisma.client.$transaction(async (tx: any) => {
+      const team = await this.getDraftTeamForCaptain(tx, teamId, actor.id);
+      if (team.category.participationType === ParticipationType.SOLO) {
+        throw new BadRequestException('Không thể xóa thành viên của đội SOLO.');
+      }
+
+      const user = await tx.user.findUnique({
+        where: { phone },
+        select: { id: true },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng.');
+      }
+      if (user.id === team.captainId) {
+        throw new ConflictException(
+          'Không thể xóa captain khỏi roster; hãy đổi captain trước.',
+        );
+      }
+
+      const membership = await tx.teamMember.findFirst({
+        where: { teamId, userId: user.id, leftAt: null },
+        select: { id: true },
+      });
+      if (!membership) {
+        throw new NotFoundException('Người dùng không thuộc roster của đội.');
+      }
+
+      const rosterCount = await tx.teamMember.count({
+        where: { teamId, leftAt: null },
+      });
+      if (rosterCount - 1 < team.category.minPlayers) {
+        throw new BadRequestException(
+          'Không thể xóa vì roster sẽ thấp hơn số thành viên tối thiểu của hạng mục.',
+        );
+      }
+
+      const removed = await tx.teamMember.updateMany({
+        where: { id: membership.id, leftAt: null },
+        data: { leftAt: new Date() },
+      });
+      if (removed.count !== 1) {
+        throw new ConflictException('Roster đã thay đổi; hãy thử lại.');
+      }
+
+      return this.getTeamDetails(tx, teamId);
+    });
+  }
+
+  async changeCaptain(
+    teamId: number,
+    actor: { id: number; role: Role; status: UserStatus },
+    input: ChangeTeamCaptainDto,
+  ) {
+    this.assertActivePlayer(actor, 'đổi captain');
+
+    return this.prisma.client.$transaction(async (tx: any) => {
+      const team = await this.getDraftTeamForCaptain(tx, teamId, actor.id);
+      const user = await tx.user.findUnique({
+        where: { phone: input.phone },
+        select: { id: true, status: true, role: true },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng.');
+      }
+      if (user.status !== UserStatus.ACTIVE || user.role !== Role.PLAYER) {
+        throw new ConflictException(
+          'Captain mới phải là người chơi đang hoạt động.',
+        );
+      }
+      if (user.id === team.captainId) {
+        return this.getTeamDetails(tx, teamId);
+      }
+      if (team.category.participationType === ParticipationType.SOLO) {
+        throw new BadRequestException(
+          'Đội SOLO chỉ có captain hiện tại trong roster.',
+        );
+      }
+
+      const newCaptainMembership = await tx.teamMember.findFirst({
+        where: { teamId, userId: user.id, leftAt: null },
+        select: { id: true },
+      });
+      if (!newCaptainMembership) {
+        throw new BadRequestException('Captain mới phải thuộc roster của đội.');
+      }
+
+      const otherMembership = await tx.teamMember.findFirst({
+        where: {
+          userId: user.id,
+          teamId: { not: teamId },
+          leftAt: null,
+          team: {
+            categoryId: team.categoryId,
+            status: {
+              in: [TeamStatus.DRAFT, TeamStatus.PENDING, TeamStatus.ACCEPTED],
+            },
+          },
+        },
+        select: { id: true },
+      });
+      if (otherMembership) {
+        throw new ConflictException(
+          'Captain mới đã thuộc một đội khác trong hạng mục này.',
+        );
+      }
+
+      const oldCaptainMembership = await tx.teamMember.findFirst({
+        where: {
+          teamId,
+          userId: team.captainId,
+          leftAt: null,
+          role: TeamMemberRole.CAPTAIN,
+        },
+        select: { id: true },
+      });
+      if (!oldCaptainMembership) {
+        throw new ConflictException('Roster hiện tại không có captain hợp lệ.');
+      }
+
+      await tx.teamMember.update({
+        where: { id: oldCaptainMembership.id },
+        data: { role: TeamMemberRole.MEMBER },
+      });
+      await tx.teamMember.update({
+        where: { id: newCaptainMembership.id },
+        data: { role: TeamMemberRole.CAPTAIN },
+      });
+      await tx.team.update({
+        where: { id: teamId },
+        data: { captainId: user.id },
+      });
+
+      return this.getTeamDetails(tx, teamId);
+    });
+  }
+
   async list(categoryId: number, query: TeamListQueryDto, actorId?: number) {
     const category = await this.getVisibleCategory(categoryId, actorId);
     const page = query.page ?? 1;
@@ -308,5 +543,73 @@ export class TeamsService {
       throw new NotFoundException('Không tìm thấy hạng mục.');
     }
     return category;
+  }
+
+  private assertActivePlayer(
+    actor: { role: Role; status: UserStatus },
+    action: string,
+  ) {
+    if (actor.role !== Role.PLAYER || actor.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException(
+        `Chỉ người chơi đang hoạt động mới có thể ${action}.`,
+      );
+    }
+  }
+
+  private async getDraftTeamForCaptain(
+    tx: any,
+    teamId: number,
+    actorId: number,
+  ) {
+    const team = await tx.team.findUnique({
+      where: { id: teamId },
+      select: {
+        id: true,
+        categoryId: true,
+        captainId: true,
+        status: true,
+        category: {
+          select: {
+            id: true,
+            participationType: true,
+            minPlayers: true,
+            maxPlayers: true,
+          },
+        },
+      },
+    });
+    if (!team) {
+      throw new NotFoundException('Không tìm thấy đội.');
+    }
+    if (team.captainId !== actorId) {
+      throw new ForbiddenException('Chỉ captain mới có thể quản lý roster.');
+    }
+    if (team.status !== TeamStatus.DRAFT) {
+      throw new ConflictException(
+        'Chỉ đội ở trạng thái DRAFT mới được chỉnh sửa roster.',
+      );
+    }
+
+    await tx.$queryRaw`SELECT "id" FROM "categories" WHERE "id" = ${team.categoryId} FOR UPDATE`;
+
+    const captains = await tx.teamMember.findMany({
+      where: { teamId, leftAt: null, role: TeamMemberRole.CAPTAIN },
+      select: { userId: true },
+    });
+    if (captains.length !== 1 || captains[0].userId !== team.captainId) {
+      throw new ConflictException(
+        'Đội phải có đúng một captain hợp lệ trong roster.',
+      );
+    }
+
+    return team;
+  }
+
+  private async getTeamDetails(tx: any, teamId: number) {
+    const team = await tx.team.findUnique({
+      where: { id: teamId },
+      include: teamDetails,
+    });
+    return { ...team, rosterCount: team.members.length };
   }
 }

@@ -166,10 +166,12 @@ bảo nó trùng với category của team.
 
 ### Roster
 
-Category đặt min/max team size. Khi tạo hoặc chỉnh sửa team ở trạng thái
-`DRAFT`, roster không được vượt `maxPlayers`; chưa cần đạt `minPlayers` cho
-đến khi captain gửi đăng ký. Sau khi team chuyển sang `PENDING`, roster bị
-khóa; các thay đổi về sau cần BTC chấp thuận và có lịch sử.
+Category đặt min/max team size. Team mới ở `DRAFT` có thể chỉ gồm captain
+để captain hoàn thiện roster sau. Roster không được vượt `maxPlayers`; thao
+tác xóa thành viên không được làm roster thấp hơn `minPlayers`. Trước khi
+gửi đăng ký, roster phải đạt `minPlayers`. Sau khi team chuyển sang
+`PENDING`, roster bị khóa; các thay đổi về sau cần BTC chấp thuận và có
+lịch sử.
 
 ## 5. Stage, format, group và match
 

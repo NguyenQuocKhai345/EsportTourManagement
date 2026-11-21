@@ -55,6 +55,24 @@ export class UpdateTeamDto {
   logoUrl?: string | null;
 }
 
+export class AddTeamMemberDto {
+  @ApiProperty({ example: '0912345678' })
+  @IsString()
+  @Matches(/^[0-9]{10}$/, {
+    message: 'Số điện thoại phải gồm đúng 10 chữ số.',
+  })
+  phone: string;
+}
+
+export class ChangeTeamCaptainDto {
+  @ApiProperty({ example: '0912345678' })
+  @IsString()
+  @Matches(/^[0-9]{10}$/, {
+    message: 'Số điện thoại phải gồm đúng 10 chữ số.',
+  })
+  phone: string;
+}
+
 export class TeamListQueryDto {
   @ApiPropertyOptional({ minimum: 1, default: 1 })
   @IsOptional()
