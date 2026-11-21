@@ -35,6 +35,26 @@ export class CreateTeamDto {
   memberPhones?: string[];
 }
 
+export class UpdateTeamDto {
+  @ApiPropertyOptional({ maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  name?: string;
+
+  @ApiPropertyOptional({ maxLength: 20, nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  tag?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 2048, nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  logoUrl?: string | null;
+}
+
 export class TeamListQueryDto {
   @ApiPropertyOptional({ minimum: 1, default: 1 })
   @IsOptional()

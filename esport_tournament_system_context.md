@@ -115,6 +115,23 @@ giá trị thì là thể lệ riêng của category.
 Đội được tạo trong một category, không phải đội dùng chung tự do cho mọi
 category. `TEAMS` lưu category, captain, tên đội và thông tin cần thiết.
 
+Vòng đời của team dùng các trạng thái `DRAFT`, `PENDING`, `ACCEPTED` và
+`REJECTED`. Team mới được tạo ở trạng thái `DRAFT`; captain được phép tạo
+đội với roster ban đầu chỉ có chính mình rồi bổ sung/thay đổi thông tin và
+thành viên khi team còn ở `DRAFT`. Chỉ captain mới được sửa thông tin chung
+của team (như tên, tag, logo); API quản lý roster là luồng riêng, cũng chỉ
+cho phép captain thao tác khi team còn `DRAFT`. Mọi trạng thái khác đều khóa
+chỉnh sửa roster và thông tin team. `DISBANDED` được giữ để biểu diễn các
+team cũ đã giải tán.
+
+Khi captain gửi đăng ký category, roster phải đạt `minPlayers` và team chuyển
+sang `PENDING`; khi BTC duyệt hoặc từ chối đăng ký, trạng thái team lần lượt
+được đồng bộ thành `ACCEPTED` hoặc `REJECTED`. `REGISTRATIONS` vẫn lưu hồ sơ
+và lịch sử xét duyệt; trạng thái team phản ánh giai đoạn tham gia của team.
+Một player chỉ được nằm trong roster đang hoạt động của tối đa một team
+trong cùng category. Team `REJECTED` hoặc `DISBANDED` không còn chiếm suất
+roster của player trong category đó.
+
 ### SOLO vẫn dùng TEAMS
 
 Cả TEAM và SOLO đều dùng thực thể `TEAMS`: - Category TEAM: đội có nhiều
@@ -149,8 +166,10 @@ bảo nó trùng với category của team.
 
 ### Roster
 
-Category đặt min/max team size; đội quản lý thành viên. Khóa roster sau khi
-được duyệt; thay đổi cần BTC chấp thuận và có lịch sử.
+Category đặt min/max team size. Khi tạo hoặc chỉnh sửa team ở trạng thái
+`DRAFT`, roster không được vượt `maxPlayers`; chưa cần đạt `minPlayers` cho
+đến khi captain gửi đăng ký. Sau khi team chuyển sang `PENDING`, roster bị
+khóa; các thay đổi về sau cần BTC chấp thuận và có lịch sử.
 
 ## 5. Stage, format, group và match
 

@@ -10,10 +10,11 @@ import {
   ParticipationType,
   Role,
   TeamMemberRole,
+  TeamStatus,
   TournamentStatus,
   UserStatus,
 } from '../../generated/prisma/enums';
-import { CreateTeamDto, TeamListQueryDto } from './dto/team.dto';
+import { CreateTeamDto, TeamListQueryDto, UpdateTeamDto } from './dto/team.dto';
 
 const teamDetails = {
   category: {
@@ -73,7 +74,6 @@ export class TeamsService {
         select: {
           id: true,
           participationType: true,
-          minPlayers: true,
           maxPlayers: true,
           maxTeams: true,
           tournament: { select: { status: true } },
@@ -87,11 +87,6 @@ export class TeamsService {
       }
 
       const rosterSize = teammatePhones.length + 1;
-      if (rosterSize < category.minPlayers) {
-        throw new BadRequestException(
-          'Roster chưa đạt số thành viên tối thiểu của hạng mục.',
-        );
-      }
       if (rosterSize > category.maxPlayers) {
         throw new BadRequestException(
           'Roster vượt quá số thành viên tối đa của hạng mục.',
@@ -129,7 +124,12 @@ export class TeamsService {
         where: {
           userId: { in: rosterUserIds },
           leftAt: null,
-          team: { categoryId: category.id, status: 'ACTIVE' },
+          team: {
+            categoryId: category.id,
+            status: {
+              in: [TeamStatus.DRAFT, TeamStatus.PENDING, TeamStatus.ACCEPTED],
+            },
+          },
         },
         select: { userId: true },
       });
@@ -141,7 +141,12 @@ export class TeamsService {
 
       if (category.maxTeams !== null) {
         const teamCount = await tx.team.count({
-          where: { categoryId: category.id },
+          where: {
+            categoryId: category.id,
+            status: {
+              in: [TeamStatus.DRAFT, TeamStatus.PENDING, TeamStatus.ACCEPTED],
+            },
+          },
         });
         if (teamCount >= category.maxTeams) {
           throw new ConflictException('Hạng mục đã đạt giới hạn số đội.');
@@ -153,6 +158,7 @@ export class TeamsService {
           categoryId: category.id,
           captainId: actor.id,
           name: input.name.trim(),
+          status: TeamStatus.DRAFT,
           members: {
             create: [
               { userId: actor.id, role: TeamMemberRole.CAPTAIN },
@@ -169,11 +175,85 @@ export class TeamsService {
     });
   }
 
+  async update(
+    teamId: number,
+    actor: { id: number; role: Role; status: UserStatus },
+    input: UpdateTeamDto,
+  ) {
+    if (actor.role !== Role.PLAYER || actor.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException(
+        'Chỉ người chơi đang hoạt động mới có thể sửa đội.',
+      );
+    }
+    if (input.name !== undefined && !input.name.trim()) {
+      throw new BadRequestException('Tên đội không được để trống.');
+    }
+    if (input.tag !== undefined && input.tag !== null && !input.tag.trim()) {
+      throw new BadRequestException('Tag đội không được để trống.');
+    }
+    if (
+      input.logoUrl !== undefined &&
+      input.logoUrl !== null &&
+      !input.logoUrl.trim()
+    ) {
+      throw new BadRequestException('Logo URL không được để trống.');
+    }
+    if (
+      input.name === undefined &&
+      input.tag === undefined &&
+      input.logoUrl === undefined
+    ) {
+      throw new BadRequestException('Cần cung cấp thông tin đội cần cập nhật.');
+    }
+
+    return this.prisma.client.$transaction(async (tx: any) => {
+      const existingTeam = await tx.team.findUnique({
+        where: { id: teamId },
+        select: { id: true, captainId: true, status: true },
+      });
+      if (!existingTeam) {
+        throw new NotFoundException('Không tìm thấy đội.');
+      }
+      if (existingTeam.captainId !== actor.id) {
+        throw new ForbiddenException('Chỉ captain mới có thể sửa đội.');
+      }
+      if (existingTeam.status !== TeamStatus.DRAFT) {
+        throw new ConflictException(
+          'Chỉ đội ở trạng thái DRAFT mới được chỉnh sửa.',
+        );
+      }
+
+      const updatedTeam = await tx.team.update({
+        where: { id: teamId },
+        data: {
+          ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+          ...(input.tag !== undefined
+            ? { tag: input.tag === null ? null : input.tag.trim() }
+            : {}),
+          ...(input.logoUrl !== undefined
+            ? { logoUrl: input.logoUrl === null ? null : input.logoUrl.trim() }
+            : {}),
+        },
+        include: teamDetails,
+      });
+      return {
+        ...updatedTeam,
+        rosterCount: updatedTeam.members.length,
+      };
+    });
+  }
+
   async list(categoryId: number, query: TeamListQueryDto, actorId?: number) {
     const category = await this.getVisibleCategory(categoryId, actorId);
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const where = { categoryId: category.id, status: 'ACTIVE' as const };
+    const where = {
+      categoryId: category.id,
+      OR: [
+        { status: TeamStatus.ACCEPTED },
+        ...(actorId ? [{ captainId: actorId }] : []),
+      ],
+    };
     const [items, total] = await this.prisma.client.$transaction([
       this.prisma.client.team.findMany({
         where,
@@ -204,6 +284,9 @@ export class TeamsService {
       throw new NotFoundException('Không tìm thấy đội.');
     }
     await this.getVisibleCategory(team.category.id, actorId);
+    if (team.status !== TeamStatus.ACCEPTED && team.captainId !== actorId) {
+      throw new NotFoundException('Không tìm thấy đội.');
+    }
     return { ...team, rosterCount: team.members.length };
   }
 

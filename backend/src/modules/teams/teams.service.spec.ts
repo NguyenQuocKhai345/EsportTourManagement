@@ -8,6 +8,7 @@ import {
   ParticipationType,
   Role,
   TeamMemberRole,
+  TeamStatus,
   TournamentStatus,
   UserStatus,
 } from '../../generated/prisma/enums';
@@ -18,8 +19,17 @@ describe('TeamsService', () => {
     $queryRaw: jest.fn().mockResolvedValue([]),
     category: { findUnique: jest.fn() },
     user: { findMany: jest.fn() },
-    teamMember: { findMany: jest.fn() },
-    team: { count: jest.fn(), create: jest.fn() },
+    teamMember: {
+      findMany: jest.fn(),
+      updateMany: jest.fn(),
+      createMany: jest.fn(),
+    },
+    team: {
+      count: jest.fn(),
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
   };
   const prisma: any = {
     client: {
@@ -77,6 +87,7 @@ describe('TeamsService', () => {
           categoryId: 3,
           captainId: 1,
           name: 'Team Alpha',
+          status: TeamStatus.DRAFT,
           members: {
             create: [
               { userId: 1, role: TeamMemberRole.CAPTAIN },
@@ -154,13 +165,22 @@ describe('TeamsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('rejects a roster below the category minimum', async () => {
-    await expect(
-      service.create(3, actor, {
-        ...input,
-        memberPhones: [],
+  it('allows creating a TEAM with only its captain even if below category minimum', async () => {
+    tx.user.findMany.mockResolvedValueOnce([]);
+    tx.team.create.mockResolvedValueOnce({ id: 8, members: [{}] });
+
+    const result = await service.create(3, actor, { name: 'Team Alpha' });
+
+    expect(result.rosterCount).toBe(1);
+    expect(tx.team.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          members: {
+            create: [{ userId: actor.id, role: TeamMemberRole.CAPTAIN }],
+          },
+        }),
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    );
   });
 
   it('requires exactly the captain for a SOLO category', async () => {
@@ -209,12 +229,19 @@ describe('TeamsService', () => {
       tournament: { status: TournamentStatus.REGISTRATION_OPEN },
     });
     prisma.client.team.findMany.mockResolvedValue([
-      { id: 8, members: [{}, {}] },
+      { id: 8, status: TeamStatus.ACCEPTED, members: [{}, {}] },
     ]);
     prisma.client.team.count.mockResolvedValue(1);
 
     await expect(service.list(3, { page: 1, limit: 20 })).resolves.toEqual({
-      items: [{ id: 8, members: [{}, {}], rosterCount: 2 }],
+      items: [
+        {
+          id: 8,
+          status: TeamStatus.ACCEPTED,
+          members: [{}, {}],
+          rosterCount: 2,
+        },
+      ],
       total: 1,
       page: 1,
       limit: 20,
@@ -224,6 +251,8 @@ describe('TeamsService', () => {
   it('returns team details with roster count', async () => {
     prisma.client.team.findUnique.mockResolvedValue({
       id: 8,
+      captainId: 1,
+      status: TeamStatus.ACCEPTED,
       category: { tournament: { status: TournamentStatus.REGISTRATION_OPEN } },
       members: [{}, {}],
     });
@@ -236,6 +265,8 @@ describe('TeamsService', () => {
   it('hides teams in a draft tournament from unrelated users', async () => {
     prisma.client.team.findUnique.mockResolvedValue({
       id: 8,
+      captainId: 8,
+      status: TeamStatus.DRAFT,
       category: { id: 3, tournament: { status: TournamentStatus.DRAFT } },
       members: [],
     });
@@ -246,5 +277,66 @@ describe('TeamsService', () => {
     await expect(service.getById(8, 1)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('lets the captain update common team information in DRAFT', async () => {
+    tx.team.findUnique.mockResolvedValue({
+      id: 8,
+      captainId: actor.id,
+      status: TeamStatus.DRAFT,
+    });
+    tx.team.update.mockResolvedValue({
+      id: 8,
+      members: [{}, {}],
+      status: TeamStatus.DRAFT,
+    });
+
+    const result = await service.update(8, actor, {
+      name: 'Updated Team',
+      tag: 'UPD',
+      logoUrl: 'https://example.com/logo.png',
+    });
+
+    expect(result.rosterCount).toBe(2);
+    expect(tx.team.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 8 },
+        data: {
+          name: 'Updated Team',
+          tag: 'UPD',
+          logoUrl: 'https://example.com/logo.png',
+        },
+      }),
+    );
+    expect(tx.teamMember.updateMany).not.toHaveBeenCalled();
+    expect(tx.teamMember.createMany).not.toHaveBeenCalled();
+  });
+
+  it('prevents editing a team after it leaves DRAFT', async () => {
+    tx.team.findUnique.mockResolvedValueOnce({
+      id: 8,
+      categoryId: 3,
+      captainId: actor.id,
+      status: TeamStatus.PENDING,
+    });
+
+    await expect(
+      service.update(8, actor, { name: 'Changed' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.team.update).not.toHaveBeenCalled();
+  });
+
+  it('forbids a non-captain player from editing a DRAFT team', async () => {
+    tx.team.findUnique.mockResolvedValueOnce({
+      id: 8,
+      categoryId: 3,
+      captainId: 2,
+      status: TeamStatus.DRAFT,
+    });
+
+    await expect(
+      service.update(8, actor, { name: 'Changed' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(tx.team.update).not.toHaveBeenCalled();
   });
 });

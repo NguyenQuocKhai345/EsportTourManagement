@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Param,
   ParseIntPipe,
   Post,
@@ -12,7 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../auth/decorator/public';
 import { Roles } from '../../auth/decorator/roles';
 import { Role } from '../../generated/prisma/enums';
-import { CreateTeamDto, TeamListQueryDto } from './dto/team.dto';
+import { CreateTeamDto, TeamListQueryDto, UpdateTeamDto } from './dto/team.dto';
 import { TeamsService } from './teams.service';
 
 @ApiTags('Teams')
@@ -51,5 +52,16 @@ export class TeamDetailsController {
   @Public()
   get(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return this.teams.getById(id, req.user?.id);
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth('accessToken')
+  @Roles(Role.PLAYER)
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+    @Body() body: UpdateTeamDto,
+  ) {
+    return this.teams.update(id, req.user, body);
   }
 }
