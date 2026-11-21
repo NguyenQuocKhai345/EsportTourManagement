@@ -12,6 +12,7 @@ import { TournamentsModule } from './modules/tournaments/tournaments.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { GamesModule } from './modules/games/games.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
+import { TeamsModule } from './modules/teams/teams.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AdminUsersModule } from './modules/admin-users/admin-users.module';
     TournamentsModule,
     CategoriesModule,
     GamesModule,
+    TeamsModule,
   ],
   controllers: [AppController],
   providers: [
