@@ -1,74 +1,46 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  Query,
-  ParseIntPipe,
-  Request,
   HttpCode,
   HttpStatus,
+  Patch,
+  Post,
+  Request,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { UserService } from './user.service';
-import { CreateUserDto } from './create-user.dto';
-import { UpdateUserDto } from './update-user.dto';
-import { QueryUserDto } from './query-user.dto';
-import { Roles } from '../../auth/decorator/roles';
-import { Role } from '../../generated/prisma/enums';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ResponseMessage } from '../../format-response/success/message-decorator';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UserService } from './user.service';
 
-@ApiTags('Admin Users')
+@ApiTags('User Profile')
 @ApiBearerAuth('accessToken')
-@Roles(Role.ADMIN)
-@Controller({
-  path: 'users',
-  version: '1',
-})
+@Controller({ path: 'users', version: '1' })
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ResponseMessage('Tạo người dùng thành công')
-  @ApiOperation({ summary: 'Admin tạo tài khoản người dùng mới' })
-  @ApiResponse({ status: 201, description: 'Tạo tài khoản thành công' })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  @Get('profile/me')
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Lấy hồ sơ thành công')
+  @ApiOperation({ summary: 'Lấy hồ sơ của tài khoản đang đăng nhập' })
+  getMyProfile(@Request() req: any) {
+    return this.userService.getProfile(req.user.id);
   }
 
-  @Get()
+  @Patch('profile/me')
   @HttpCode(HttpStatus.OK)
-  @ResponseMessage('Lấy danh sách người dùng thành công')
-  @ApiOperation({ summary: 'Admin lấy danh sách người dùng (phân trang, tìm kiếm, lọc)' })
-  findAll(@Query() query: QueryUserDto) {
-    return this.userService.findAll(query);
+  @ResponseMessage('Cập nhật hồ sơ thành công')
+  @ApiOperation({ summary: 'Cập nhật hồ sơ của tài khoản đang đăng nhập' })
+  updateMyProfile(@Request() req: any, @Body() dto: UpdateProfileDto) {
+    return this.userService.updateProfile(req.user.id, dto);
   }
 
-  @Get(':id')
+  @Post('change-password')
   @HttpCode(HttpStatus.OK)
-  @ResponseMessage('Lấy thông tin người dùng thành công')
-  @ApiOperation({ summary: 'Admin lấy thông tin chi tiết một người dùng' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.userService.findOne(id);
-  }
-
-  @Patch(':id')
-  @HttpCode(HttpStatus.OK)
-  @ResponseMessage('Cập nhật người dùng thành công')
-  @ApiOperation({ summary: 'Admin cập nhật thông tin người dùng' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(id, updateUserDto);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.OK)
-  @ResponseMessage('Xóa người dùng thành công')
-  @ApiOperation({ summary: 'Admin xóa tài khoản người dùng' })
-  remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
-    return this.userService.remove(id, req.user.id);
+  @ResponseMessage('Đổi mật khẩu thành công')
+  @ApiOperation({ summary: 'Đổi mật khẩu tài khoản đang đăng nhập' })
+  changePassword(@Request() req: any, @Body() dto: ChangePasswordDto) {
+    return this.userService.changePassword(req.user.id, dto);
   }
 }

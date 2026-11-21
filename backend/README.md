@@ -68,10 +68,14 @@ auth-nestjs/
 │   │       └── local.guard.ts
 │   │
 │   ├── modules/
-│   │   └── user/                 # Domain người dùng
+│   │   ├── user/                 # Self-service hồ sơ + dữ liệu user phục vụ Auth
 │   │       ├── user.module.ts
 │   │       ├── user.controller.ts
-│   │       └── user.service.ts   # findUserValidate, findUserById (dùng cho auth.service)
+│   │       └── user.service.ts
+│   │   └── admin-users/          # API quản trị riêng, prefix /admin/users
+│   │       ├── admin-users.module.ts
+│   │       ├── admin-users.controller.ts
+│   │       └── admin-users.service.ts
 │   │
 │   ├── prisma/                   # Kết nối database
 │   │   ├── prisma.module.ts      # @Global() — export PrismaService cho toàn app
@@ -194,8 +198,21 @@ npm run test:cov
 
 | Method | Endpoint             | Quyền | Mô tả |
 | ------ | -------------------- | ----- | ----- |
-| POST   | `/api/v1/users`      | ADMIN | Tạo tài khoản người dùng mới (chỉ định role, status) |
-| GET    | `/api/v1/users`      | ADMIN | Lấy danh sách người dùng (phân trang `page`, `limit`, tìm kiếm `search`, lọc `role`, `status`) |
-| GET    | `/api/v1/users/:id`  | ADMIN | Xem thông tin chi tiết một người dùng |
-| PATCH  | `/api/v1/users/:id`  | ADMIN | Cập nhật thông tin (đổi tên, email, phone, role, status, password). Thu hồi phiên đăng nhập khi khóa tài khoản |
-| DELETE | `/api/v1/users/:id`  | ADMIN | Xóa tài khoản người dùng (chặn Admin tự xóa chính mình) |
+| POST   | `/api/v1/admin/users`      | ADMIN | Tạo tài khoản người dùng mới (chỉ định role, status) |
+| GET    | `/api/v1/admin/users`      | ADMIN | Lấy danh sách người dùng (phân trang `page`, `limit`, tìm kiếm `search`, lọc `role`, `status`) |
+| GET    | `/api/v1/admin/users/:id`  | ADMIN | Xem thông tin chi tiết một người dùng |
+| PATCH  | `/api/v1/admin/users/:id`  | ADMIN | Cập nhật thông tin profile (tên, email, phone) |
+| PATCH  | `/api/v1/admin/users/:id/status` | ADMIN | Chuyển trạng thái tài khoản (`ACTIVE`, `INACTIVE`, `BLOCKED`); trạng thái khác `ACTIVE` thu hồi refresh token |
+| DELETE | `/api/v1/admin/users/:id`  | ADMIN | Vô hiệu hóa tài khoản (không xóa vật lý; chặn Admin tự vô hiệu hóa chính mình) |
+
+## Hồ sơ và mật khẩu
+
+Các endpoint sau yêu cầu Bearer Token và luôn thao tác trên tài khoản từ JWT:
+
+| Method | Endpoint | Quyền | Mô tả |
+| ------ | -------- | ----- | ----- |
+| GET | `/api/v1/users/profile/me` | Authenticated | Xem hồ sơ không chứa password/hash/token |
+| PATCH | `/api/v1/users/profile/me` | Authenticated | Cập nhật `name`, `email`, `phone` |
+| POST | `/api/v1/users/change-password` | Authenticated | Body gồm `currentPassword`, `newPassword`, `confirmPassword`; password mới theo policy đăng ký |
+
+Tài khoản `INACTIVE` hoặc `BLOCKED` không thể login, refresh token hoặc sử dụng access token. Access token đã phát hành trước khi trạng thái đổi có thể tiếp tục dùng cho tới khi hết hạn nếu request không qua JWT guard (các API được bảo vệ sẽ kiểm tra trạng thái trên DB).

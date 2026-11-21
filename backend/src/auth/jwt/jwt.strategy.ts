@@ -22,7 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
   async validate(payload: { sub: number }): Promise<UserInfo> {
     const user = await this.userService.findUserById(payload.sub);
-    if (!user || user.status === UserStatus.BLOCKED) {
+    if (!user || user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Tài khoản không hợp lệ');
     }
 

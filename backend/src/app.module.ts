@@ -11,6 +11,7 @@ import { RolesGuard } from './auth/jwt/roles.guard';
 import { TournamentsModule } from './modules/tournaments/tournaments.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { GamesModule } from './modules/games/games.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { GamesModule } from './modules/games/games.module';
     PrismaModule,
     AuthModule,
     UserModule,
+    AdminUsersModule,
     TournamentsModule,
     CategoriesModule,
     GamesModule,
