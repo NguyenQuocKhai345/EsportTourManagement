@@ -2,13 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../modules/user/user.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { BadRequestException, UnauthorizedException } from '../format-response/errors/error';
+import {
+  BadRequestException,
+  UnauthorizedException,
+} from '../format-response/errors/error';
 import * as argon from 'argon2';
 import { RevokedReason, Role, UserStatus } from '../generated/prisma/enums';
 import { UserAccount } from '../interfaces';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
-import { RegisterDto,} from './dto/auth.dto';
+import { RegisterDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -22,7 +25,7 @@ export class AuthService {
   // Validate User để login
   async validateUser(phone: string, pass: string): Promise<UserAccount> {
     const user = await this.userService.findUserValidate(phone);
-    if (!user || !user.password || user.status === UserStatus.BLOCKED)
+    if (!user || !user.password || user.status !== UserStatus.ACTIVE)
       throw new BadRequestException('Tài khoản không tồn tại hoặc bị khóa');
     const ok = await argon.verify(user.password, pass);
     if (!ok) throw new BadRequestException('Sai mật khẩu');
@@ -30,9 +33,9 @@ export class AuthService {
   }
 
   // TẠO TOKEN
-  private async generateToken(user: UserAccount)
-    : Promise<{ accessToken: string; refreshToken: string }>
-  {
+  private async generateToken(
+    user: UserAccount,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     const payload = {
       sub: user.id,
       phone: user.phone,
@@ -47,18 +50,21 @@ export class AuthService {
 
     const refreshToken = await this.jwtService.signAsync(payload, {
       secret: this.configService.get<string>('JWT_USER_REFRESH_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_USER_REFRESH_EXPIRED') as any,
+      expiresIn: this.configService.get<string>(
+        'JWT_USER_REFRESH_EXPIRED',
+      ) as any,
     });
     return {
       accessToken: accessToken,
-      refreshToken: refreshToken
+      refreshToken: refreshToken,
     };
   }
 
   // Đăng nhập
-  async login(user: UserAccount, deviceId: string)
-    : Promise<{ accessToken: string; refreshToken: string, user: UserAccount }>
-  {
+  async login(
+    user: UserAccount,
+    deviceId: string,
+  ): Promise<{ accessToken: string; refreshToken: string; user: UserAccount }> {
     const { accessToken, refreshToken } = await this.generateToken(user);
     const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
     const absoluteExpiredAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -85,18 +91,19 @@ export class AuthService {
     return {
       accessToken: accessToken,
       refreshToken: refreshToken,
-      user: user
+      user: user,
     };
   }
 
   // Refresh token
-  async refresh(deviceId: string, refreshToken: string)
-    : Promise<{ accessToken: string; refreshToken: string }>
-  {
+  async refresh(
+    deviceId: string,
+    refreshToken: string,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     let payload: any;
     try {
       payload = this.jwtService.verify(refreshToken, {
-      secret: this.configService.get<string>('JWT_USER_REFRESH_SECRET'),
+        secret: this.configService.get<string>('JWT_USER_REFRESH_SECRET'),
       });
     } catch {
       throw new UnauthorizedException('Token không hợp lệ');
@@ -115,17 +122,20 @@ export class AuthService {
       throw new UnauthorizedException('Token không hợp lệ');
 
     const user = await this.userService.findUserById(userId);
-    if (!user || user.status === UserStatus.BLOCKED)
+    if (!user || user.status !== UserStatus.ACTIVE)
       throw new UnauthorizedException('Tài khoản không hợp lệ');
 
-    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await this.generateToken({
-      id: user.id,
-      phone: user.phone,
-      name: user.name,
-      role: user.role,
-    });
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      await this.generateToken({
+        id: user.id,
+        phone: user.phone,
+        name: user.name,
+        role: user.role,
+      });
 
-    const newTokenHash = createHash('sha256').update(newRefreshToken).digest('hex');
+    const newTokenHash = createHash('sha256')
+      .update(newRefreshToken)
+      .digest('hex');
     await this.prisma.refreshToken.update({
       where: { userId_deviceId: { userId, deviceId } },
       data: { tokenHash: newTokenHash, lastUsedAt: new Date() },
@@ -138,7 +148,11 @@ export class AuthService {
   async logout(userId: number, deviceId: string): Promise<void> {
     await this.prisma.refreshToken.update({
       where: { userId_deviceId: { userId, deviceId } },
-      data: { revoked: true, revokedAt: new Date(), revokedReason: RevokedReason.LOGOUT },
+      data: {
+        revoked: true,
+        revokedAt: new Date(),
+        revokedReason: RevokedReason.LOGOUT,
+      },
     });
   }
 
@@ -146,14 +160,18 @@ export class AuthService {
   async logoutAllDevices(userId: number): Promise<void> {
     await this.prisma.refreshToken.updateMany({
       where: { userId, revoked: false },
-      data: { revoked: true, revokedAt: new Date(), revokedReason: RevokedReason.LOGOUT },
+      data: {
+        revoked: true,
+        revokedAt: new Date(),
+        revokedReason: RevokedReason.LOGOUT,
+      },
     });
   }
 
   // Đăng ký tài khoản mới
-  async register(body: RegisterDto)
-    : Promise<{ accessToken: string; refreshToken: string, user: UserAccount }>
-  {
+  async register(
+    body: RegisterDto,
+  ): Promise<{ accessToken: string; refreshToken: string; user: UserAccount }> {
     const { name, phone, password, confirmPassword, email, deviceId } = body;
     const role = body.role ?? Role.PLAYER;
     if (password !== confirmPassword) {
@@ -164,7 +182,9 @@ export class AuthService {
       throw new BadRequestException('Số điện thoại đã được đăng ký');
     }
 
-    const existingEmail = await this.prisma.user.findUnique({ where: { email } });
+    const existingEmail = await this.prisma.user.findUnique({
+      where: { email },
+    });
     if (existingEmail) {
       throw new BadRequestException('Email đã được sử dụng');
     }

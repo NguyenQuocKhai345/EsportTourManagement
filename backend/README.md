@@ -4,7 +4,7 @@
 
 <h1 align="center">Auth NestJS</h1>
 
-<p align="center">Backend API xác thực & phân quyền (Authentication &amp; Authorization) xây dựng bằng <a href="http://nestjs.com/" target="_blank">NestJS</a> + <a href="https://www.prisma.io/" target="_blank">Prisma</a>.</p>
+<p align="center">Backend API xác thực & phân quyền (Authentication & Authorization) xây dựng bằng <a href="http://nestjs.com/" target="_blank">NestJS</a> + <a href="https://www.prisma.io/" target="_blank">Prisma</a>.</p>
 
 ---
 
@@ -25,15 +25,15 @@
 
 ## Công nghệ chính
 
-| Thành phần | Công nghệ |
-| --- | --- |
-| Framework | NestJS 10 |
-| ORM | Prisma 7 (`prisma-client`, output `src/generated/prisma`) |
-| DB driver | PostgreSQL qua `@prisma/adapter-pg` (`pg`) |
-| Xác thực | Passport (`passport-local`, `passport-jwt`) + `@nestjs/jwt` |
-| Hash mật khẩu | argon2 |
-| Validate | class-validator / class-transformer |
-| Tài liệu API | `@nestjs/swagger` |
+| Thành phần    | Công nghệ                                                       |
+| --------------- | ----------------------------------------------------------------- |
+| Framework       | NestJS 10                                                         |
+| ORM             | Prisma 7 (`prisma-client`, output `src/generated/prisma`)     |
+| DB driver       | PostgreSQL qua `@prisma/adapter-pg` (`pg`)                    |
+| Xác thực      | Passport (`passport-local`, `passport-jwt`) + `@nestjs/jwt` |
+| Hash mật khẩu | argon2                                                            |
+| Validate        | class-validator / class-transformer                               |
+| Tài liệu API  | `@nestjs/swagger`                                               |
 
 ## Cấu trúc thư mục
 
@@ -68,10 +68,14 @@ auth-nestjs/
 │   │       └── local.guard.ts
 │   │
 │   ├── modules/
-│   │   └── user/                 # Domain người dùng
+│   │   ├── user/                 # Self-service hồ sơ + dữ liệu user phục vụ Auth
 │   │       ├── user.module.ts
 │   │       ├── user.controller.ts
-│   │       └── user.service.ts   # findUserValidate, findUserById (dùng cho auth.service)
+│   │       └── user.service.ts
+│   │   └── admin-users/          # API quản trị riêng, prefix /admin/users
+│   │       ├── admin-users.module.ts
+│   │       ├── admin-users.controller.ts
+│   │       └── admin-users.service.ts
 │   │
 │   ├── prisma/                   # Kết nối database
 │   │   ├── prisma.module.ts      # @Global() — export PrismaService cho toàn app
@@ -180,10 +184,35 @@ npm run test:cov
 
 ## API chính (nhóm auth)
 
-| Method | Endpoint | Public | Mô tả |
-| --- | --- | --- | --- |
-| POST | `/api/v1/auth/register` | ✅ | Đăng ký tài khoản mới, tự động đăng nhập trả về token |
-| POST | `/api/v1/auth/login` | ✅ | Đăng nhập bằng `phone` + `password` + `deviceId` |
-| POST | `/api/v1/auth/refresh` | ✅ | Làm mới `accessToken`/`refreshToken` theo `deviceId` |
-| POST | `/api/v1/auth/logout` | ❌ | Thu hồi refresh token của một thiết bị |
-| POST | `/api/v1/auth/logout-all-devices` | ❌ | Thu hồi refresh token của tất cả thiết bị |
+| Method | Endpoint                            | Public | Mô tả                                                             |
+| ------ | ----------------------------------- | ------ | ------------------------------------------------------------------- |
+| POST   | `/api/v1/auth/register`           | ✅     | Đăng ký tài khoản mới, tự động đăng nhập trả về token |
+| POST   | `/api/v1/auth/login`              | ✅     | Đăng nhập bằng `phone` + `password` + `deviceId`          |
+| POST   | `/api/v1/auth/refresh`            | ✅     | Làm mới `accessToken`/`refreshToken` theo `deviceId`        |
+| POST   | `/api/v1/auth/logout`             | ❌     | Thu hồi refresh token của một thiết bị                         |
+| POST   | `/api/v1/auth/logout-all-devices` | ❌     | Thu hồi refresh token của tất cả thiết bị                     |
+
+## API quản lý người dùng (nhóm Admin User)
+
+> Toàn bộ API bên dưới yêu cầu xác thực Bearer Token của tài khoản có vai trò `ADMIN`.
+
+| Method | Endpoint             | Quyền | Mô tả |
+| ------ | -------------------- | ----- | ----- |
+| POST   | `/api/v1/admin/users`      | ADMIN | Tạo tài khoản người dùng mới (chỉ định role, status) |
+| GET    | `/api/v1/admin/users`      | ADMIN | Lấy danh sách người dùng (phân trang `page`, `limit`, tìm kiếm `search`, lọc `role`, `status`) |
+| GET    | `/api/v1/admin/users/:id`  | ADMIN | Xem thông tin chi tiết một người dùng |
+| PATCH  | `/api/v1/admin/users/:id`  | ADMIN | Cập nhật thông tin profile (tên, email, phone) |
+| PATCH  | `/api/v1/admin/users/:id/status` | ADMIN | Chuyển trạng thái tài khoản (`ACTIVE`, `INACTIVE`, `BLOCKED`); trạng thái khác `ACTIVE` thu hồi refresh token |
+| DELETE | `/api/v1/admin/users/:id`  | ADMIN | Vô hiệu hóa tài khoản (không xóa vật lý; chặn Admin tự vô hiệu hóa chính mình) |
+
+## Hồ sơ và mật khẩu
+
+Các endpoint sau yêu cầu Bearer Token và luôn thao tác trên tài khoản từ JWT:
+
+| Method | Endpoint | Quyền | Mô tả |
+| ------ | -------- | ----- | ----- |
+| GET | `/api/v1/users/profile/me` | Authenticated | Xem hồ sơ không chứa password/hash/token |
+| PATCH | `/api/v1/users/profile/me` | Authenticated | Cập nhật `name`, `email`, `phone` |
+| POST | `/api/v1/users/change-password` | Authenticated | Body gồm `currentPassword`, `newPassword`, `confirmPassword`; password mới theo policy đăng ký |
+
+Tài khoản `INACTIVE` hoặc `BLOCKED` không thể login, refresh token hoặc sử dụng access token. Access token đã phát hành trước khi trạng thái đổi có thể tiếp tục dùng cho tới khi hết hạn nếu request không qua JWT guard (các API được bảo vệ sẽ kiểm tra trạng thái trên DB).

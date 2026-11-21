@@ -8,6 +8,10 @@ import { UserModule } from './modules/user/user.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtGuard } from './auth/jwt/jwt.guard';
 import { RolesGuard } from './auth/jwt/roles.guard';
+import { TournamentsModule } from './modules/tournaments/tournaments.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { GamesModule } from './modules/games/games.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 
 @Module({
   imports: [
@@ -15,6 +19,10 @@ import { RolesGuard } from './auth/jwt/roles.guard';
     PrismaModule,
     AuthModule,
     UserModule,
+    AdminUsersModule,
+    TournamentsModule,
+    CategoriesModule,
+    GamesModule,
   ],
   controllers: [AppController],
   providers: [

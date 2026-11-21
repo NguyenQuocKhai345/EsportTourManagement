@@ -287,7 +287,7 @@ model Category {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  tournament       Tournament                @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament       Tournament                @relation(fields: [tournamentId], references: [id], onDelete: Restrict)
   game             Game                      @relation(fields: [gameId], references: [id], onDelete: Restrict)
   eligibilityRules CategoryEligibilityRule[]
   teams            Team[]
@@ -344,8 +344,8 @@ model RuleDocument {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tournament Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tournament Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Restrict)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   chunks     RuleChunk[]
 
   @@index([tournamentId, categoryId])
@@ -379,7 +379,7 @@ model Team {
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
-  category             Category                  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category             Category                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   captain              User                      @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: Restrict)
   members              TeamMember[]
   joinRequests         TeamJoinRequest[]
@@ -547,7 +547,7 @@ model Stage {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
-  category    Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category    Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   groups      StageGroup[]
   standings   StageStanding[]
   matches     Match[]

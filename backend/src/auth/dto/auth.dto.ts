@@ -1,6 +1,10 @@
 import { IsIn, IsNotEmpty, IsString, Matches, ValidateIf } from 'class-validator';
 import { Role } from '../../generated/prisma/enums';
 
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
+const PASSWORD_ERROR =
+  'Mật khẩu phải có ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt';
+
 export class UserLoginDto {
   @IsString()
   @IsNotEmpty()
@@ -9,7 +13,7 @@ export class UserLoginDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[0-9]{6}$/, { message: 'Mật khẩu không hợp lệ' })
+  @Matches(PASSWORD_REGEX, { message: PASSWORD_ERROR })
   password: string;
 
   @IsString()
@@ -49,12 +53,12 @@ export class RegisterDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[0-9]{6}$/, { message: 'Mật khẩu không hợp lệ' })
+  @Matches(PASSWORD_REGEX, { message: PASSWORD_ERROR })
   password: string;
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[0-9]{6}$/, { message: 'Xác nhận mật khẩu không hợp lệ' })
+  @Matches(PASSWORD_REGEX, { message: PASSWORD_ERROR })
   confirmPassword: string;
 
   @IsString()
