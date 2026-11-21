@@ -429,6 +429,50 @@ Test cần setup/cleanup rõ ràng, độc lập và không phụ thuộc thứ 
 Tuân theo formatter/linter và convention đã có trong repository. Nếu
 chưa có, thống nhất quy ước trước khi mở rộng.
 
+### Trình bày code dễ đọc
+
+Ưu tiên code tường minh, dễ quét mắt hơn code ngắn gọn nhưng dồn nhiều
+ý vào một dòng. Formatter chỉ xử lý định dạng cơ bản; không dùng việc
+formatter chấp nhận một dòng làm lý do để nén các bước xử lý.
+
+- Mỗi câu lệnh thực thi là một câu lệnh riêng; không ghép nhiều câu lệnh
+  bằng dấu `;` trên cùng một dòng.
+- Với `if`, `else`, vòng lặp và các khối điều khiển, luôn dùng `{}` và
+  đặt phần thân trên dòng riêng. Không viết câu lệnh thực thi ngay sau
+  điều kiện hoặc trên cùng dòng với `else`.
+- Dùng dòng trống để phân tách các bước có mục đích khác nhau trong hàm,
+  chẳng hạn kiểm tra đầu vào, xử lý nghiệp vụ và trả kết quả. Không thêm
+  dòng trống giữa mọi câu lệnh một cách máy móc.
+- Xuống dòng cho điều kiện dài, danh sách tham số, object/array hoặc
+  chuỗi gọi hàm dài khi việc đó giúp thấy rõ cấu trúc và ý nghĩa của
+  từng phần.
+- Hạn chế lồng nhiều ternary, callback hoặc biểu thức điều kiện vào một
+  dòng. Chuyển thành `if/else` hoặc biến trung gian có tên rõ nghĩa khi
+  giúp luồng xử lý dễ hiểu hơn.
+- Không rút gọn hàm bằng cách gom nhiều nhánh hoặc nhiều bước nghiệp vụ
+  thành một dòng; mỗi nhánh cần thể hiện rõ điều kiện và hành động.
+
+Ví dụ, tránh viết:
+
+```typescript
+if (!user) throw new NotFoundException('User not found');
+if (!user.isActive) return this.createSession(user); else return null;
+```
+
+Viết tường minh hơn:
+
+```typescript
+if (!user) {
+  throw new NotFoundException('User not found');
+}
+
+if (!user.isActive) {
+  return this.createSession(user);
+}
+
+return null;
+```
+
 -   JavaScript/TypeScript: camelCase cho biến/hàm; PascalCase cho
     class/type/interface; UPPER_SNAKE_CASE cho constant khi phù hợp.
 -   Boolean có tên rõ nghĩa như `isApproved`, `hasPermission`,

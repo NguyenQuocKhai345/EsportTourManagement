@@ -98,12 +98,12 @@ format khác nhau.
 ### Điều kiện tham gia
 
 `CATEGORY_ELIGIBILITY_RULES` lưu các tiêu chí như giới tính, năm
-học/khóa, tư cách sinh viên, rank hoặc điều kiện BTC đặt ra. Các điều kiện cần này chỉ là mô tả văn bản vì mỗi BTC lại nhắm đến những đối tượng khác nhau.
+học/khóa, tư cách sinh viên, rank hoặc điều kiện BTC đặt ra. Các điều kiện cần này chỉ là mô tả văn bản vì mỗi BTC lại nhắm đến những đối tượng khác nhau. Có thể là file hoặc text
 
 ### Thể lệ chung và riêng
 
 Một giải có thể có tài liệu thể lệ chung và tài liệu riêng theo
-category. `RULE_DOCUMENTS` lưu tài liệu; `RULE_CHUNKS` lưu các đoạn đã
+category. `RULE_DOCUMENTS` lưu tài liệu, có thể là text hoặc file; `RULE_CHUNKS` lưu các đoạn đã
 tách để truy xuất RAG. Cần đảm bảo category-specific rule thuộc đúng
 tournament. Nếu `category_id` null thì tài liệu là thể lệ chung; nếu có
 giá trị thì là thể lệ riêng của category.
@@ -429,7 +429,7 @@ Tên bảng là danh sách đã xuất hiện trong phương án ERD thảo lu�
                                       category.
 
   `RULE_DOCUMENTS`                    Tài liệu thể lệ chung hoặc riêng
-                                      category.
+                                      category. Có thể là text hoặc File.
 
   `RULE_CHUNKS`                       Các đoạn thể lệ được tách để truy
                                       xuất RAG.

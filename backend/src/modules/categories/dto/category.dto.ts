@@ -38,18 +38,21 @@ export class CreateCategoryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(2147483647)
   minTeamSize: number;
 
   @ApiProperty({ minimum: 1 })
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(2147483647)
   maxTeamSize: number;
 
   @ApiProperty({ minimum: 1 })
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(2147483647)
   maxTeams: number;
 
   @ApiPropertyOptional({
@@ -60,6 +63,7 @@ export class CreateCategoryDto {
   @IsArray()
   @ArrayMaxSize(50)
   @IsString({ each: true })
+  @MaxLength(5000, { each: true })
   eligibilityRules?: string[];
 }
 
@@ -92,6 +96,7 @@ export class UpdateCategoryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(2147483647)
   minTeamSize?: number;
 
   @ApiPropertyOptional({ minimum: 1 })
@@ -99,6 +104,7 @@ export class UpdateCategoryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(2147483647)
   maxTeamSize?: number;
 
   @ApiPropertyOptional({ minimum: 1 })
@@ -106,6 +112,7 @@ export class UpdateCategoryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(2147483647)
   maxTeams?: number;
 
   @ApiPropertyOptional({
@@ -116,6 +123,7 @@ export class UpdateCategoryDto {
   @IsArray()
   @ArrayMaxSize(50)
   @IsString({ each: true })
+  @MaxLength(5000, { each: true })
   eligibilityRules?: string[];
 }
 

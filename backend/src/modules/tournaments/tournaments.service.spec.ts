@@ -34,6 +34,25 @@ describe('TournamentsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('stores general rules text when creating a tournament', async () => {
+    prisma.client.tournament.create = jest.fn().mockResolvedValue({
+      id: 10,
+      generalRules: 'Thể lệ chung',
+    });
+    prisma.client.auditLog.create = jest.fn().mockResolvedValue({});
+
+    await service.create(2, {
+      name: 'Giải đấu',
+      generalRules: 'Thể lệ chung',
+    });
+
+    expect(prisma.client.tournament.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ generalRules: 'Thể lệ chung' }),
+      }),
+    );
+  });
+
   it('rejects writes by a BTC who does not own the tournament', async () => {
     prisma.client.tournament.findUnique = jest
       .fn()

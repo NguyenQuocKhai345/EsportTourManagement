@@ -39,6 +39,9 @@ describe('CategoriesService', () => {
       ),
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       team: { count: jest.fn().mockResolvedValue(0) },
+      game: {
+        findUnique: jest.fn().mockResolvedValue({ id: 3, isActive: true }),
+      },
     },
   };
   const tournaments: any = {
@@ -95,6 +98,30 @@ describe('CategoriesService', () => {
         maxTeamSize: 4,
         maxTeams: 8,
       }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects an inactive game when creating a category', async () => {
+    prisma.client.game.findUnique.mockResolvedValueOnce({
+      id: 3,
+      isActive: false,
+    });
+
+    await expect(
+      service.create(1, 2, {
+        gameId: 3,
+        name: 'Team',
+        participationType: ParticipationType.TEAM,
+        minTeamSize: 1,
+        maxTeamSize: 5,
+        maxTeams: 8,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects blank eligibility text in the business layer', async () => {
+    await expect(
+      service.update(1, 5, 2, { eligibilityRules: ['   '] }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
