@@ -18,6 +18,8 @@ import {
   AddTeamMemberDto,
   ChangeTeamCaptainDto,
   CreateTeamDto,
+  SubmitTeamJoinRequestDto,
+  TeamJoinRequestListQueryDto,
   TeamListQueryDto,
   UpdateTeamDto,
 } from './dto/team.dto';
@@ -103,5 +105,49 @@ export class TeamDetailsController {
     @Body() body: ChangeTeamCaptainDto,
   ) {
     return this.teams.changeCaptain(id, req.user, body);
+  }
+
+  @Post(':id/join-requests')
+  @ApiBearerAuth('accessToken')
+  @Roles(Role.PLAYER)
+  submitJoinRequest(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+    @Body() body: SubmitTeamJoinRequestDto,
+  ) {
+    return this.teams.submitJoinRequest(id, req.user, body);
+  }
+
+  @Get(':id/join-requests')
+  @ApiBearerAuth('accessToken')
+  @Roles(Role.PLAYER)
+  listJoinRequests(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+    @Query() query: TeamJoinRequestListQueryDto,
+  ) {
+    return this.teams.listJoinRequests(id, req.user, query);
+  }
+
+  @Post(':id/join-requests/:requestId/accept')
+  @ApiBearerAuth('accessToken')
+  @Roles(Role.PLAYER)
+  acceptJoinRequest(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @Req() req: any,
+  ) {
+    return this.teams.acceptJoinRequest(id, requestId, req.user);
+  }
+
+  @Post(':id/join-requests/:requestId/reject')
+  @ApiBearerAuth('accessToken')
+  @Roles(Role.PLAYER)
+  rejectJoinRequest(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @Req() req: any,
+  ) {
+    return this.teams.rejectJoinRequest(id, requestId, req.user);
   }
 }

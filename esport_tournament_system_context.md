@@ -143,9 +143,41 @@ quả dùng cùng một mô hình.
 
 ### Thành viên và yêu cầu gia nhập
 
-`TEAM_MEMBERS` lưu thành viên đã được chấp nhận. `TEAM_JOIN_REQUESTS`
-lưu yêu cầu xin gia nhập đang chờ hoặc đã được xử lý. Một request chưa
-được chấp nhận không có nghĩa người đó đã là thành viên chính thức.
+`TEAM_MEMBERS` là nguồn xác định roster đang hoạt động
+(`leftAt = NULL`). `TEAM_JOIN_REQUESTS` lưu cả join request và lịch sử
+các lần gia nhập Team; một request `PENDING` chưa được chấp nhận không có
+nghĩa người đó đã là thành viên chính thức.
+
+Status của `TEAM_JOIN_REQUESTS` thể hiện nguồn/kết quả gia nhập, không
+thể hiện member còn ở trong Team hay không:
+
+- `PENDING`: đang chờ Captain xử lý.
+- `ACCEPTED`: Captain đã chấp nhận join request.
+- `REJECTED`: Captain đã từ chối join request.
+- `ADDED`: Captain thêm trực tiếp, hoặc lịch sử roster cũ được backfill
+  khi không còn thông tin về nguồn gia nhập.
+
+`ACCEPTED` và `ADDED` giữ nguyên status sau khi member rời Team. Việc rời
+Team được ghi bằng `removedAt`, `removedById` và `removalReason` tùy chọn;
+không có status `REMOVED`. Có thể có nhiều history record cho cùng
+Team/User: mỗi lần rejoin tạo record mới, không ghi đè record cũ. Thay đổi
+membership và history phải nằm trong cùng transaction. History không thay
+thế `TEAM_MEMBERS` khi xác định roster thực tế.
+
+Player gửi join request bằng identity từ access token. Chỉ Category
+`TEAM`, Team `DRAFT` thuộc Tournament `REGISTRATION_OPEN` nhận request;
+Category `SOLO` không hỗ trợ join request. Mỗi Team/User chỉ có một
+request `PENDING` tại một thời điểm. Captain của Team mới được xem, accept
+hoặc reject request đó. Accept thêm member và chuyển request sang
+`ACCEPTED` atomically; reject chuyển sang `REJECTED` và không sửa roster.
+Player đã ở một Team đang hoạt động trong cùng Category không thể gửi hoặc
+được accept vào Team khác trong Category đó.
+
+Direct add qua API roster tạo history `ADDED`; remove cập nhật metadata
+xóa trên đúng history đang hoạt động mà không đổi status. Tạo Team cũng
+ghi history `ADDED` cho roster khởi tạo. Roster mutation và history được
+serialize theo Category lock để giữ capacity và tránh thao tác đồng thời
+tạo trạng thái trùng.
 
 Đội trưởng có thể chủ động yêu cầu AI xếp hạng ứng viên. Ví dụ đội tối
 đa 5 người nhưng có 7 yêu cầu gia nhập; đội trưởng kích hoạt AI để so

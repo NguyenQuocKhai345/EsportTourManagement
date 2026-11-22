@@ -10,6 +10,7 @@ import {
   ParticipationType,
   Role,
   TeamMemberRole,
+  TeamJoinRequestStatus,
   TeamStatus,
   TournamentStatus,
   UserStatus,
@@ -18,6 +19,8 @@ import {
   AddTeamMemberDto,
   ChangeTeamCaptainDto,
   CreateTeamDto,
+  SubmitTeamJoinRequestDto,
+  TeamJoinRequestListQueryDto,
   TeamListQueryDto,
   UpdateTeamDto,
 } from './dto/team.dto';
@@ -177,6 +180,17 @@ export class TeamsService {
         },
         include: teamDetails,
       });
+      const createdAt = team.createdAt;
+      await tx.teamJoinRequest.createMany({
+        data: rosterUserIds.map((userId) => ({
+          teamId: team.id,
+          userId,
+          status: TeamJoinRequestStatus.ADDED,
+          decidedAt: createdAt,
+          decidedById: actor.id,
+          createdAt,
+        })),
+      });
       return { ...team, rosterCount: rosterSize };
     });
   }
@@ -309,12 +323,30 @@ export class TeamsService {
         where: { teamId, userId: user.id },
         select: { id: true },
       });
+      const activeHistory = await tx.teamJoinRequest.findFirst({
+        where: {
+          teamId,
+          userId: user.id,
+          status: {
+            in: [TeamJoinRequestStatus.ACCEPTED, TeamJoinRequestStatus.ADDED],
+          },
+          removedAt: null,
+        },
+        select: { id: true },
+      });
+      if (activeHistory) {
+        throw new ConflictException(
+          'Lịch sử ghi nhận người chơi vẫn đang là thành viên của đội.',
+        );
+      }
+
+      const joinedAt = new Date();
       if (previousMembership) {
         await tx.teamMember.update({
           where: { id: previousMembership.id },
           data: {
             leftAt: null,
-            joinedAt: new Date(),
+            joinedAt,
             role: TeamMemberRole.MEMBER,
           },
         });
@@ -324,9 +356,21 @@ export class TeamsService {
             teamId,
             userId: user.id,
             role: TeamMemberRole.MEMBER,
+            joinedAt,
           },
         });
       }
+
+      await tx.teamJoinRequest.create({
+        data: {
+          teamId,
+          userId: user.id,
+          status: TeamJoinRequestStatus.ADDED,
+          decidedAt: joinedAt,
+          decidedById: actor.id,
+          createdAt: joinedAt,
+        },
+      });
 
       return this.getTeamDetails(tx, teamId);
     });
@@ -378,15 +422,415 @@ export class TeamsService {
         );
       }
 
+      const activeHistory = await tx.teamJoinRequest.findMany({
+        where: {
+          teamId,
+          userId: user.id,
+          status: {
+            in: [TeamJoinRequestStatus.ACCEPTED, TeamJoinRequestStatus.ADDED],
+          },
+          removedAt: null,
+        },
+        select: { id: true },
+      });
+      if (activeHistory.length !== 1) {
+        throw new ConflictException(
+          'Không tìm thấy duy nhất lịch sử membership đang hoạt động.',
+        );
+      }
+
+      const removedAt = new Date();
+      const historyUpdate = await tx.teamJoinRequest.updateMany({
+        where: { id: activeHistory[0].id, removedAt: null },
+        data: { removedAt, removedById: actor.id },
+      });
+      if (historyUpdate.count !== 1) {
+        throw new ConflictException(
+          'Lịch sử membership đã thay đổi; hãy thử lại.',
+        );
+      }
+
       const removed = await tx.teamMember.updateMany({
         where: { id: membership.id, leftAt: null },
-        data: { leftAt: new Date() },
+        data: { leftAt: removedAt },
       });
       if (removed.count !== 1) {
         throw new ConflictException('Roster đã thay đổi; hãy thử lại.');
       }
 
       return this.getTeamDetails(tx, teamId);
+    });
+  }
+
+  async submitJoinRequest(
+    teamId: number,
+    actor: { id: number; role: Role; status: UserStatus },
+    input: SubmitTeamJoinRequestDto,
+  ) {
+    this.assertActivePlayer(actor, 'gửi yêu cầu tham gia đội');
+
+    return this.prisma.client.$transaction(async (tx: any) => {
+      const initialTeam = await tx.team.findUnique({
+        where: { id: teamId },
+        select: { id: true, categoryId: true },
+      });
+      if (!initialTeam) {
+        throw new NotFoundException('Không tìm thấy đội.');
+      }
+
+      await tx.$queryRaw`SELECT "id" FROM "categories" WHERE "id" = ${initialTeam.categoryId} FOR UPDATE`;
+
+      const team = await tx.team.findUnique({
+        where: { id: teamId },
+        select: {
+          id: true,
+          categoryId: true,
+          status: true,
+          category: {
+            select: {
+              participationType: true,
+              tournament: { select: { status: true } },
+            },
+          },
+        },
+      });
+      if (!team) {
+        throw new NotFoundException('Không tìm thấy đội.');
+      }
+      this.assertJoinRequestTeamOpen(team);
+
+      const requester = await tx.user.findUnique({
+        where: { id: actor.id },
+        select: { id: true, role: true, status: true },
+      });
+      if (
+        !requester ||
+        requester.role !== Role.PLAYER ||
+        requester.status !== UserStatus.ACTIVE
+      ) {
+        throw new ForbiddenException(
+          'Chỉ người chơi đang hoạt động mới có thể gửi yêu cầu tham gia đội.',
+        );
+      }
+
+      const existingMembership = await tx.teamMember.findFirst({
+        where: {
+          userId: requester.id,
+          leftAt: null,
+          team: {
+            categoryId: team.categoryId,
+            status: {
+              in: [TeamStatus.DRAFT, TeamStatus.PENDING, TeamStatus.ACCEPTED],
+            },
+          },
+        },
+        select: { id: true },
+      });
+      if (existingMembership) {
+        throw new ConflictException(
+          'Người chơi đã thuộc một đội trong hạng mục này.',
+        );
+      }
+
+      const pendingRequest = await tx.teamJoinRequest.findFirst({
+        where: {
+          teamId,
+          userId: requester.id,
+          status: TeamJoinRequestStatus.PENDING,
+        },
+        select: { id: true },
+      });
+      if (pendingRequest) {
+        throw new ConflictException('Bạn đã có yêu cầu đang chờ xử lý.');
+      }
+
+      return tx.teamJoinRequest.create({
+        data: {
+          teamId,
+          userId: requester.id,
+          message: input.message?.trim() || null,
+          status: TeamJoinRequestStatus.PENDING,
+        },
+        select: {
+          id: true,
+          teamId: true,
+          userId: true,
+          message: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+    });
+  }
+
+  async listJoinRequests(
+    teamId: number,
+    actor: { id: number; role: Role; status: UserStatus },
+    query: TeamJoinRequestListQueryDto,
+  ) {
+    this.assertActivePlayer(actor, 'xem yêu cầu tham gia đội');
+    const team = await this.prisma.client.team.findUnique({
+      where: { id: teamId },
+      select: { id: true, captainId: true },
+    });
+    if (!team) {
+      throw new NotFoundException('Không tìm thấy đội.');
+    }
+    if (team.captainId !== actor.id) {
+      throw new ForbiddenException(
+        'Chỉ captain mới có thể xem yêu cầu của đội.',
+      );
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const where = {
+      teamId,
+      ...(query.status ? { status: query.status } : {}),
+    };
+    const [items, total] = await this.prisma.client.$transaction([
+      this.prisma.client.teamJoinRequest.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          teamId: true,
+          userId: true,
+          message: true,
+          status: true,
+          createdAt: true,
+          decidedAt: true,
+          decidedById: true,
+          removedAt: true,
+          removedById: true,
+          removalReason: true,
+          user: { select: { id: true, name: true } },
+          decidedBy: { select: { id: true, name: true } },
+          removedBy: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.client.teamJoinRequest.count({ where }),
+    ]);
+
+    return { items, total, page, limit };
+  }
+
+  async acceptJoinRequest(
+    teamId: number,
+    requestId: number,
+    actor: { id: number; role: Role; status: UserStatus },
+  ) {
+    this.assertActivePlayer(actor, 'duyệt yêu cầu tham gia đội');
+
+    return this.prisma.client.$transaction(async (tx: any) => {
+      const team = await this.getDraftTeamForCaptain(tx, teamId, actor.id);
+      if (team.category.participationType !== ParticipationType.TEAM) {
+        throw new BadRequestException(
+          'Category SOLO không hỗ trợ join request.',
+        );
+      }
+      if (
+        team.category.tournament.status !== TournamentStatus.REGISTRATION_OPEN
+      ) {
+        throw new ConflictException('Giải hiện không mở nhận thành viên.');
+      }
+
+      const request = await tx.teamJoinRequest.findUnique({
+        where: { id: requestId },
+        select: {
+          id: true,
+          teamId: true,
+          userId: true,
+          status: true,
+          user: { select: { id: true, role: true, status: true } },
+        },
+      });
+      if (!request || request.teamId !== teamId) {
+        throw new NotFoundException('Không tìm thấy yêu cầu tham gia đội.');
+      }
+      if (request.status !== TeamJoinRequestStatus.PENDING) {
+        throw new ConflictException('Yêu cầu này đã được xử lý.');
+      }
+      if (
+        request.user.role !== Role.PLAYER ||
+        request.user.status !== UserStatus.ACTIVE
+      ) {
+        throw new ConflictException('Người gửi yêu cầu không còn hợp lệ.');
+      }
+
+      const existingMembership = await tx.teamMember.findFirst({
+        where: {
+          userId: request.userId,
+          leftAt: null,
+          team: {
+            categoryId: team.categoryId,
+            status: {
+              in: [TeamStatus.DRAFT, TeamStatus.PENDING, TeamStatus.ACCEPTED],
+            },
+          },
+        },
+        select: { id: true },
+      });
+      if (existingMembership) {
+        throw new ConflictException(
+          'Người chơi đã thuộc một đội trong hạng mục này.',
+        );
+      }
+
+      const activeHistory = await tx.teamJoinRequest.findFirst({
+        where: {
+          teamId,
+          userId: request.userId,
+          status: {
+            in: [TeamJoinRequestStatus.ACCEPTED, TeamJoinRequestStatus.ADDED],
+          },
+          removedAt: null,
+        },
+        select: { id: true },
+      });
+      if (activeHistory) {
+        throw new ConflictException(
+          'Lịch sử ghi nhận người chơi vẫn đang là thành viên của đội.',
+        );
+      }
+
+      const rosterCount = await tx.teamMember.count({
+        where: { teamId, leftAt: null },
+      });
+      if (rosterCount >= team.category.maxPlayers) {
+        throw new ConflictException('Roster đã đạt số thành viên tối đa.');
+      }
+
+      const previousMembership = await tx.teamMember.findFirst({
+        where: { teamId, userId: request.userId },
+        select: { id: true },
+      });
+      const decidedAt = new Date();
+      if (previousMembership) {
+        await tx.teamMember.update({
+          where: { id: previousMembership.id },
+          data: {
+            role: TeamMemberRole.MEMBER,
+            joinedAt: decidedAt,
+            leftAt: null,
+          },
+        });
+      } else {
+        await tx.teamMember.create({
+          data: {
+            teamId,
+            userId: request.userId,
+            role: TeamMemberRole.MEMBER,
+            joinedAt: decidedAt,
+          },
+        });
+      }
+
+      const updatedRequest = await tx.teamJoinRequest.updateMany({
+        where: { id: requestId, teamId, status: TeamJoinRequestStatus.PENDING },
+        data: {
+          status: TeamJoinRequestStatus.ACCEPTED,
+          decidedById: actor.id,
+          decidedAt,
+        },
+      });
+      if (updatedRequest.count !== 1) {
+        throw new ConflictException('Yêu cầu đã được xử lý; hãy tải lại.');
+      }
+
+      return {
+        request: await tx.teamJoinRequest.findUnique({
+          where: { id: requestId },
+          select: {
+            id: true,
+            teamId: true,
+            userId: true,
+            status: true,
+            decidedAt: true,
+            decidedById: true,
+          },
+        }),
+        team: await this.getTeamDetails(tx, teamId),
+      };
+    });
+  }
+
+  async rejectJoinRequest(
+    teamId: number,
+    requestId: number,
+    actor: { id: number; role: Role; status: UserStatus },
+  ) {
+    this.assertActivePlayer(actor, 'duyệt yêu cầu tham gia đội');
+
+    return this.prisma.client.$transaction(async (tx: any) => {
+      const initialTeam = await tx.team.findUnique({
+        where: { id: teamId },
+        select: { id: true, categoryId: true, captainId: true },
+      });
+      if (!initialTeam) {
+        throw new NotFoundException('Không tìm thấy đội.');
+      }
+      if (initialTeam.captainId !== actor.id) {
+        throw new ForbiddenException('Chỉ captain mới có thể xử lý yêu cầu.');
+      }
+      await tx.$queryRaw`SELECT "id" FROM "categories" WHERE "id" = ${initialTeam.categoryId} FOR UPDATE`;
+
+      const lockedTeam = await tx.team.findUnique({
+        where: { id: teamId },
+        select: {
+          captainId: true,
+          category: { select: { participationType: true } },
+        },
+      });
+      if (!lockedTeam) {
+        throw new NotFoundException('Không tìm thấy đội.');
+      }
+      if (lockedTeam.captainId !== actor.id) {
+        throw new ForbiddenException('Chỉ captain mới có thể xử lý yêu cầu.');
+      }
+      if (lockedTeam.category.participationType !== ParticipationType.TEAM) {
+        throw new BadRequestException(
+          'Category SOLO không hỗ trợ join request.',
+        );
+      }
+
+      const request = await tx.teamJoinRequest.findUnique({
+        where: { id: requestId },
+        select: { id: true, teamId: true, status: true },
+      });
+      if (!request || request.teamId !== teamId) {
+        throw new NotFoundException('Không tìm thấy yêu cầu tham gia đội.');
+      }
+      if (request.status !== TeamJoinRequestStatus.PENDING) {
+        throw new ConflictException('Yêu cầu này đã được xử lý.');
+      }
+
+      const decidedAt = new Date();
+      const updated = await tx.teamJoinRequest.updateMany({
+        where: { id: requestId, teamId, status: TeamJoinRequestStatus.PENDING },
+        data: {
+          status: TeamJoinRequestStatus.REJECTED,
+          decidedById: actor.id,
+          decidedAt,
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException('Yêu cầu đã được xử lý; hãy tải lại.');
+      }
+
+      return tx.teamJoinRequest.findUnique({
+        where: { id: requestId },
+        select: {
+          id: true,
+          teamId: true,
+          userId: true,
+          status: true,
+          decidedAt: true,
+          decidedById: true,
+        },
+      });
     });
   }
 
@@ -574,6 +1018,7 @@ export class TeamsService {
             participationType: true,
             minPlayers: true,
             maxPlayers: true,
+            tournament: { select: { status: true } },
           },
         },
       },
@@ -603,6 +1048,22 @@ export class TeamsService {
     }
 
     return team;
+  }
+
+  private assertJoinRequestTeamOpen(team: any) {
+    if (team.status !== TeamStatus.DRAFT) {
+      throw new ConflictException(
+        'Chỉ đội ở trạng thái DRAFT mới nhận yêu cầu tham gia.',
+      );
+    }
+    if (team.category.participationType !== ParticipationType.TEAM) {
+      throw new BadRequestException('Category SOLO không hỗ trợ join request.');
+    }
+    if (
+      team.category.tournament.status !== TournamentStatus.REGISTRATION_OPEN
+    ) {
+      throw new ConflictException('Giải hiện không mở nhận thành viên.');
+    }
   }
 
   private async getTeamDetails(tx: any, teamId: number) {

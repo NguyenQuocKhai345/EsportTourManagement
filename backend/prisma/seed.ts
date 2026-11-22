@@ -516,6 +516,90 @@ async function main() {
           skipDuplicates: true,
         });
 
+        const seededMemberships = [
+          {
+            teamId: 901,
+            userId: 3,
+            captainId: 3,
+            joinedAt: '2026-09-05T08:00:00.000Z',
+          },
+          {
+            teamId: 901,
+            userId: 4,
+            captainId: 3,
+            joinedAt: '2026-09-05T08:05:00.000Z',
+          },
+          {
+            teamId: 902,
+            userId: 5,
+            captainId: 5,
+            joinedAt: '2026-09-05T08:10:00.000Z',
+          },
+          {
+            teamId: 902,
+            userId: 6,
+            captainId: 5,
+            joinedAt: '2026-09-05T08:15:00.000Z',
+          },
+          {
+            teamId: 903,
+            userId: 7,
+            captainId: 7,
+            joinedAt: '2026-09-05T08:20:00.000Z',
+          },
+          {
+            teamId: 903,
+            userId: 8,
+            captainId: 7,
+            joinedAt: '2026-09-05T08:25:00.000Z',
+          },
+          {
+            teamId: 904,
+            userId: 9,
+            captainId: 9,
+            joinedAt: '2026-09-05T08:30:00.000Z',
+          },
+          {
+            teamId: 904,
+            userId: 10,
+            captainId: 9,
+            joinedAt: '2026-09-05T08:35:00.000Z',
+          },
+          {
+            teamId: 905,
+            userId: 11,
+            captainId: 11,
+            joinedAt: '2026-09-05T08:40:00.000Z',
+          },
+        ];
+        for (const membership of seededMemberships) {
+          const alreadyRecorded = await tx.teamJoinRequest.findFirst({
+            where: {
+              teamId: id(membership.teamId),
+              userId: id(membership.userId),
+              status: 'ADDED',
+              removedAt: null,
+            },
+            select: { id: true },
+          });
+          if (alreadyRecorded) {
+            continue;
+          }
+
+          const joinedAt = at(membership.joinedAt);
+          await tx.teamJoinRequest.create({
+            data: {
+              teamId: id(membership.teamId),
+              userId: id(membership.userId),
+              status: 'ADDED',
+              decidedAt: joinedAt,
+              decidedById: id(membership.captainId),
+              createdAt: joinedAt,
+              updatedAt: now,
+            },
+          });
+        }
+
         await tx.registration.createMany({
           data: [
             {

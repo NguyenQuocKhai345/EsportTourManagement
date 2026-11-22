@@ -3,6 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -11,6 +12,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { TeamJoinRequestStatus } from '../../../generated/prisma/enums';
 
 export class CreateTeamDto {
   @ApiProperty({ maxLength: 100 })
@@ -74,6 +76,36 @@ export class ChangeTeamCaptainDto {
 }
 
 export class TeamListQueryDto {
+  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 20;
+}
+
+export class SubmitTeamJoinRequestDto {
+  @ApiPropertyOptional({ maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  message?: string;
+}
+
+export class TeamJoinRequestListQueryDto {
+  @ApiPropertyOptional({ enum: TeamJoinRequestStatus })
+  @IsOptional()
+  @IsEnum(TeamJoinRequestStatus)
+  status?: TeamJoinRequestStatus;
+
   @ApiPropertyOptional({ minimum: 1, default: 1 })
   @IsOptional()
   @Type(() => Number)
