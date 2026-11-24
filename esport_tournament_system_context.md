@@ -98,12 +98,12 @@ format khác nhau.
 ### Điều kiện tham gia
 
 `CATEGORY_ELIGIBILITY_RULES` lưu các tiêu chí như giới tính, năm
-học/khóa, tư cách sinh viên, rank hoặc điều kiện BTC đặt ra. Các điều kiện cần này chỉ là mô tả văn bản vì mỗi BTC lại nhắm đến những đối tượng khác nhau.
+học/khóa, tư cách sinh viên, rank hoặc điều kiện BTC đặt ra. Các điều kiện cần này chỉ là mô tả văn bản vì mỗi BTC lại nhắm đến những đối tượng khác nhau. Có thể là file hoặc text
 
 ### Thể lệ chung và riêng
 
 Một giải có thể có tài liệu thể lệ chung và tài liệu riêng theo
-category. `RULE_DOCUMENTS` lưu tài liệu; `RULE_CHUNKS` lưu các đoạn đã
+category. `RULE_DOCUMENTS` lưu tài liệu, có thể là text hoặc file; `RULE_CHUNKS` lưu các đoạn đã
 tách để truy xuất RAG. Cần đảm bảo category-specific rule thuộc đúng
 tournament. Nếu `category_id` null thì tài liệu là thể lệ chung; nếu có
 giá trị thì là thể lệ riêng của category.
@@ -114,6 +114,23 @@ giá trị thì là thể lệ riêng của category.
 
 Đội được tạo trong một category, không phải đội dùng chung tự do cho mọi
 category. `TEAMS` lưu category, captain, tên đội và thông tin cần thiết.
+
+Vòng đời của team dùng các trạng thái `DRAFT`, `PENDING`, `ACCEPTED` và
+`REJECTED`. Team mới được tạo ở trạng thái `DRAFT`; captain được phép tạo
+đội với roster ban đầu chỉ có chính mình rồi bổ sung/thay đổi thông tin và
+thành viên khi team còn ở `DRAFT`. Chỉ captain mới được sửa thông tin chung
+của team (như tên, tag, logo); API quản lý roster là luồng riêng, cũng chỉ
+cho phép captain thao tác khi team còn `DRAFT`. Mọi trạng thái khác đều khóa
+chỉnh sửa roster và thông tin team. `DISBANDED` được giữ để biểu diễn các
+team cũ đã giải tán.
+
+Khi captain gửi đăng ký category, roster phải đạt `minPlayers` và team chuyển
+sang `PENDING`; khi BTC duyệt hoặc từ chối đăng ký, trạng thái team lần lượt
+được đồng bộ thành `ACCEPTED` hoặc `REJECTED`. `REGISTRATIONS` vẫn lưu hồ sơ
+và lịch sử xét duyệt; trạng thái team phản ánh giai đoạn tham gia của team.
+Một player chỉ được nằm trong roster đang hoạt động của tối đa một team
+trong cùng category. Team `REJECTED` hoặc `DISBANDED` không còn chiếm suất
+roster của player trong category đó.
 
 ### SOLO vẫn dùng TEAMS
 
@@ -126,9 +143,41 @@ quả dùng cùng một mô hình.
 
 ### Thành viên và yêu cầu gia nhập
 
-`TEAM_MEMBERS` lưu thành viên đã được chấp nhận. `TEAM_JOIN_REQUESTS`
-lưu yêu cầu xin gia nhập đang chờ hoặc đã được xử lý. Một request chưa
-được chấp nhận không có nghĩa người đó đã là thành viên chính thức.
+`TEAM_MEMBERS` là nguồn xác định roster đang hoạt động
+(`leftAt = NULL`). `TEAM_JOIN_REQUESTS` lưu cả join request và lịch sử
+các lần gia nhập Team; một request `PENDING` chưa được chấp nhận không có
+nghĩa người đó đã là thành viên chính thức.
+
+Status của `TEAM_JOIN_REQUESTS` thể hiện nguồn/kết quả gia nhập, không
+thể hiện member còn ở trong Team hay không:
+
+- `PENDING`: đang chờ Captain xử lý.
+- `ACCEPTED`: Captain đã chấp nhận join request.
+- `REJECTED`: Captain đã từ chối join request.
+- `ADDED`: Captain thêm trực tiếp, hoặc lịch sử roster cũ được backfill
+  khi không còn thông tin về nguồn gia nhập.
+
+`ACCEPTED` và `ADDED` giữ nguyên status sau khi member rời Team. Việc rời
+Team được ghi bằng `removedAt`, `removedById` và `removalReason` tùy chọn;
+không có status `REMOVED`. Có thể có nhiều history record cho cùng
+Team/User: mỗi lần rejoin tạo record mới, không ghi đè record cũ. Thay đổi
+membership và history phải nằm trong cùng transaction. History không thay
+thế `TEAM_MEMBERS` khi xác định roster thực tế.
+
+Player gửi join request bằng identity từ access token. Chỉ Category
+`TEAM`, Team `DRAFT` thuộc Tournament `REGISTRATION_OPEN` nhận request;
+Category `SOLO` không hỗ trợ join request. Mỗi Team/User chỉ có một
+request `PENDING` tại một thời điểm. Captain của Team mới được xem, accept
+hoặc reject request đó. Accept thêm member và chuyển request sang
+`ACCEPTED` atomically; reject chuyển sang `REJECTED` và không sửa roster.
+Player đã ở một Team đang hoạt động trong cùng Category không thể gửi hoặc
+được accept vào Team khác trong Category đó.
+
+Direct add qua API roster tạo history `ADDED`; remove cập nhật metadata
+xóa trên đúng history đang hoạt động mà không đổi status. Tạo Team cũng
+ghi history `ADDED` cho roster khởi tạo. Roster mutation và history được
+serialize theo Category lock để giữ capacity và tránh thao tác đồng thời
+tạo trạng thái trùng.
 
 Đội trưởng có thể chủ động yêu cầu AI xếp hạng ứng viên. Ví dụ đội tối
 đa 5 người nhưng có 7 yêu cầu gia nhập; đội trưởng kích hoạt AI để so
@@ -149,8 +198,12 @@ bảo nó trùng với category của team.
 
 ### Roster
 
-Category đặt min/max team size; đội quản lý thành viên. Khóa roster sau khi
-được duyệt; thay đổi cần BTC chấp thuận và có lịch sử.
+Category đặt min/max team size. Team mới ở `DRAFT` có thể chỉ gồm captain
+để captain hoàn thiện roster sau. Roster không được vượt `maxPlayers`; thao
+tác xóa thành viên không được làm roster thấp hơn `minPlayers`. Trước khi
+gửi đăng ký, roster phải đạt `minPlayers`. Sau khi team chuyển sang
+`PENDING`, roster bị khóa; các thay đổi về sau cần BTC chấp thuận và có
+lịch sử.
 
 ## 5. Stage, format, group và match
 
@@ -429,7 +482,7 @@ Tên bảng là danh sách đã xuất hiện trong phương án ERD thảo lu�
                                       category.
 
   `RULE_DOCUMENTS`                    Tài liệu thể lệ chung hoặc riêng
-                                      category.
+                                      category. Có thể là text hoặc File.
 
   `RULE_CHUNKS`                       Các đoạn thể lệ được tách để truy
                                       xuất RAG.

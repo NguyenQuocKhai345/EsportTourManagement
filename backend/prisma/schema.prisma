@@ -48,7 +48,10 @@ enum TournamentRefereeStatus {
 }
 
 enum TeamStatus {
-  ACTIVE
+  DRAFT
+  PENDING
+  ACCEPTED
+  REJECTED
   DISBANDED
 }
 
@@ -62,6 +65,7 @@ enum TeamJoinRequestStatus {
   ACCEPTED
   REJECTED
   WITHDRAWN
+  ADDED
 }
 
 enum RegistrationStatus {
@@ -187,6 +191,7 @@ model User {
   teamMemberships           TeamMember[]               @relation("TeamMemberUser")
   teamJoinRequests          TeamJoinRequest[]          @relation("JoinRequestUser")
   decidedTeamJoinRequests   TeamJoinRequest[]          @relation("JoinRequestDecider")
+  removedTeamJoinRequests   TeamJoinRequest[]          @relation("JoinRequestRemover")
   submittedRegistrations    Registration[]             @relation("RegistrationSubmitter")
   reviewedRegistrations     Registration[]             @relation("RegistrationReviewer")
   requestedRosterChanges    RegistrationRosterChange[] @relation("RosterChangeRequester")
@@ -375,7 +380,7 @@ model Team {
   name       String     @db.VarChar(100)
   tag        String?    @db.VarChar(20)
   logoUrl    String?    @db.Text
-  status     TeamStatus @default(ACTIVE)
+  status     TeamStatus @default(DRAFT)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
@@ -419,23 +424,29 @@ model TeamMember {
 }
 
 model TeamJoinRequest {
-  id          Int                   @id @default(autoincrement())
-  teamId      Int
-  userId      Int
-  message     String?               @db.Text
-  status      TeamJoinRequestStatus @default(PENDING)
-  decidedAt   DateTime?
-  decidedById Int?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  id            Int                   @id @default(autoincrement())
+  teamId        Int
+  userId        Int
+  message       String?               @db.Text
+  status        TeamJoinRequestStatus @default(PENDING)
+  decidedAt     DateTime?
+  decidedById   Int?
+  removedAt     DateTime?
+  removedById   Int?
+  removalReason String?               @db.Text
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   team         Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user         User                     @relation("JoinRequestUser", fields: [userId], references: [id], onDelete: Cascade)
   decidedBy    User?                    @relation("JoinRequestDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  removedBy    User?                    @relation("JoinRequestRemover", fields: [removedById], references: [id], onDelete: SetNull)
   rankingItems AICandidateRankingItem[]
 
   @@index([teamId, status])
   @@index([userId, status])
+  @@index([teamId, status, createdAt])
+  @@index([teamId, userId, removedAt])
   @@map("team_join_requests")
 }
 

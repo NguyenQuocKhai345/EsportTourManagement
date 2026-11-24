@@ -24,6 +24,7 @@ export class TournamentsService {
         organizerId: actorId,
         name: input.name,
         description: input.description,
+        generalRules: input.generalRules,
         status: input.status ?? TournamentStatus.DRAFT,
         startsAt: input.startsAt ? new Date(input.startsAt) : null,
         endsAt: input.endsAt ? new Date(input.endsAt) : null,
@@ -114,6 +115,9 @@ export class TournamentsService {
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.description !== undefined
           ? { description: input.description }
+          : {}),
+        ...(input.generalRules !== undefined
+          ? { generalRules: input.generalRules }
           : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),
         ...(input.startsAt !== undefined ? { startsAt } : {}),

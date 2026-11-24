@@ -24,6 +24,15 @@ export class CreateTournamentDto {
   description?: string;
 
   @ApiPropertyOptional({
+    maxLength: 50000,
+    description: 'Thể lệ chung dạng văn bản',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50000)
+  generalRules?: string;
+
+  @ApiPropertyOptional({
     enum: TournamentStatus,
     default: TournamentStatus.DRAFT,
   })
@@ -53,6 +62,15 @@ export class UpdateTournamentDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 50000,
+    description: 'Thể lệ chung dạng văn bản',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50000)
+  generalRules?: string;
 
   @ApiPropertyOptional({ enum: TournamentStatus })
   @IsOptional()

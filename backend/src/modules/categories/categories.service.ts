@@ -241,10 +241,15 @@ export class CategoriesService {
     categoryId: number,
     rules: string[],
   ) {
+    const normalizedRules = rules.map((description) => description.trim());
+    if (normalizedRules.some((description) => description.length === 0)) {
+      throw new BadRequestException('Điều kiện tham gia không được để trống.');
+    }
+
     await tx.categoryEligibilityRule.deleteMany({ where: { categoryId } });
-    if (rules.length) {
+    if (normalizedRules.length) {
       await tx.categoryEligibilityRule.createMany({
-        data: rules.map((description, sortOrder) => ({
+        data: normalizedRules.map((description, sortOrder) => ({
           categoryId,
           name: description.slice(0, 150) || `Điều kiện ${sortOrder + 1}`,
           description,
@@ -300,9 +305,14 @@ export class CategoriesService {
   private async assertGameExists(gameId: number) {
     const game = await this.prisma.client.game.findUnique({
       where: { id: gameId },
-      select: { id: true },
+      select: { id: true, isActive: true },
     });
     if (!game) throw new NotFoundException('Không tìm thấy trò chơi.');
+    if (!game.isActive) {
+      throw new ConflictException(
+        'Không thể gắn trò chơi đang ngừng hoạt động vào hạng mục.',
+      );
+    }
   }
 
   private async assertNoRegistrationDependencies(categoryId: number) {
