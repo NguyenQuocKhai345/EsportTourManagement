@@ -186,7 +186,7 @@ npm run test:cov
 
 | Method | Endpoint                            | Public | Mô tả                                                             |
 | ------ | ----------------------------------- | ------ | ------------------------------------------------------------------- |
-| POST   | `/api/v1/auth/register`           | ✅     | Đăng ký tài khoản mới, tự động đăng nhập trả về token |
+| POST   | `/api/v1/auth/register`           | ✅     | Đăng ký với role PLAYER, BTC hoặc REFEREE (mặc định PLAYER), tự động đăng nhập trả về token |
 | POST   | `/api/v1/auth/login`              | ✅     | Đăng nhập bằng `phone` + `password` + `deviceId`          |
 | POST   | `/api/v1/auth/refresh`            | ✅     | Làm mới `accessToken`/`refreshToken` theo `deviceId`        |
 | POST   | `/api/v1/auth/logout`             | ❌     | Thu hồi refresh token của một thiết bị                         |

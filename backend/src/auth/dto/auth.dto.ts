@@ -1,4 +1,5 @@
 import { IsIn, IsNotEmpty, IsString, Matches, ValidateIf } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Role } from '../../generated/prisma/enums';
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,}$/;
@@ -38,6 +39,11 @@ export class LogoutDto {
 }
 
 export class RegisterDto {
+  @ApiPropertyOptional({
+    enum: [Role.PLAYER, Role.BTC, Role.REFEREE],
+    default: Role.PLAYER,
+    description: 'Vai trò được chọn khi tạo tài khoản; không thể thay đổi sau đăng ký.',
+  })
   @ValidateIf((_object, value) => value !== undefined)
   @IsIn([Role.BTC, Role.PLAYER, Role.REFEREE])
   role?: Role;
