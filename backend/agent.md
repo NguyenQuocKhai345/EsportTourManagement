@@ -1,10 +1,32 @@
 # Backend Engineering Guidelines -- Esport Tournament Management System
 
-Tài liệu này quy định nguyên tắc tổ chức và viết mã Backend. `esport_tournament_system_context.md`
-mô tả bối cảnh, nghiệp vụ và kiến trúc sản phẩm; tài liệu này mô tả cách
+Tài liệu này quy định nguyên tắc tổ chức và viết mã Backend.
+`backend/docs/esport_tournament_system_context.md` mô tả bối cảnh, nghiệp
+vụ và kiến trúc sản phẩm; tài liệu này mô tả cách
 tổ chức code. Khi triển khai, cần đối chiếu cả hai tài liệu và codebase
 thực tế.
 File này chỉ quy định cách code, không lặp lại toàn bộ nghiệp vụ.
+
+## Đọc và duy trì tài liệu bối cảnh
+
+Trước khi triển khai một chức năng, bắt buộc đọc:
+
+1. `backend/docs/README.md` để xác định tài liệu cần đọc.
+2. `backend/docs/esport_tournament_system_context.md` để hiểu hệ thống và nghiệp vụ xuyên module.
+3. Tài liệu module trong `backend/docs/modules/` liên quan trực tiếp và các module phụ thuộc.
+4. Source code, DTO/controller/service, `backend/prisma/schema.prisma` và migrations hiện có để xác nhận behavior thực tế.
+
+Tài liệu không thay thế source code. Phân biệt rõ behavior đã implement với nghiệp vụ/roadmap chưa implement; không mô tả một bảng schema như thể API/workflow đã tồn tại.
+
+Sau khi thay đổi chức năng, API, lifecycle, quyền, invariant nghiệp vụ hoặc schema:
+
+- Cập nhật đúng file module trong `backend/docs/modules/` để ghi bảng/domain liên quan, mục đích, luồng hoạt động, lifecycle/status, validation/authorization và API hiện hành khi có thay đổi.
+- Cập nhật `backend/docs/esport_tournament_system_context.md` khi thay đổi ảnh hưởng nhiều module, khái niệm chung, quy tắc nghiệp vụ toàn hệ thống hoặc roadmap đã được xác nhận.
+- Cập nhật `backend/docs/README.md` nếu thêm/đổi tên/xóa tài liệu hoặc module.
+- Sửa nội dung tại section hiện có; không append bản sao, không để các tài liệu mâu thuẫn nhau. Khi behavior cũ đổi, cập nhật hoặc xóa mô tả cũ.
+- Không cập nhật docs bằng suy đoán. Nếu chưa rõ nghiệp vụ, ghi rõ câu hỏi/giới hạn trong report thay vì chốt rule mới.
+
+Hoàn tất task phải báo cáo các file docs đã đọc/cập nhật và những điểm implementation còn khác roadmap.
 
 ## 1. Mục tiêu kiến trúc
 
