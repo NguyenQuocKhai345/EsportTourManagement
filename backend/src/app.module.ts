@@ -13,6 +13,8 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { GamesModule } from './modules/games/games.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { TeamsModule } from './modules/teams/teams.module';
+import { RulesModule } from './modules/rules/rules.module';
+import { RegistrationsModule } from './modules/registrations/registrations.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { TeamsModule } from './modules/teams/teams.module';
     CategoriesModule,
     GamesModule,
     TeamsModule,
+    RulesModule,
+    RegistrationsModule,
   ],
   controllers: [AppController],
   providers: [
