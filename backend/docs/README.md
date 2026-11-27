@@ -15,6 +15,7 @@ Tài liệu này là bản đồ bối cảnh cho các phiên làm việc với 
    - [Categories](./modules/categories.md)
    - [Teams](./modules/teams.md)
    - [Rules](./modules/rules.md)
+   - [Registrations](./modules/registrations.md)
 
 `../agent.md` quy định quy trình bắt buộc: đọc tài liệu chung và module liên quan trước khi sửa; cập nhật tài liệu module khi có behavior, lifecycle, schema hoặc API mới; cập nhật tài liệu chung nếu thay đổi ảnh hưởng xuyên module hoặc thay đổi nguyên tắc nghiệp vụ toàn hệ thống.
 
