@@ -1,4 +1,4 @@
-﻿# Backend docs
+# Backend docs
 
 Tài liệu này là bản đồ bối cảnh cho các phiên làm việc với Backend Esport Tournament Management System.
 
@@ -14,6 +14,7 @@ Tài liệu này là bản đồ bối cảnh cho các phiên làm việc với 
    - [Tournaments](./modules/tournaments.md)
    - [Categories](./modules/categories.md)
    - [Teams](./modules/teams.md)
+   - [Rules](./modules/rules.md)
 
 `../agent.md` quy định quy trình bắt buộc: đọc tài liệu chung và module liên quan trước khi sửa; cập nhật tài liệu module khi có behavior, lifecycle, schema hoặc API mới; cập nhật tài liệu chung nếu thay đổi ảnh hưởng xuyên module hoặc thay đổi nguyên tắc nghiệp vụ toàn hệ thống.
 
